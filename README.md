@@ -38,21 +38,27 @@
 4. 该工具会自行检测所需路径，不用填写。当然，如果需要，也可自行指定，请使用绝对路径
 
 ### 开启命令
-确保在你开启之前，已经关掉之前开启的进程，如果不确定，首先执行**关闭命令**
+确保在你开启之前，已经关掉之前开启的进程，如果不确定，首先执行[**关闭命令**](#关闭命令)
 
 在foralive.py所在路径下执行
 
-`screen -L -Logfile foralive.log -dmS foralive python3 foralive.py`
+```bash
+screen -L -Logfile foralive.log -dmS foralive python3 foralive.py
+```
 
 如果提示 screen 错误，则说明使用的 screen 不支持自定义日志文件名称，使用这个命令即可
 
-`screen -L -dmS foralive python3 foralive.py`
+```bash
+screen -L -dmS foralive python3 foralive.py
+```
 
 运行指令后应该会在当前路径下生成 foralive.log 或 screenlog.0 文件，打开此文件即可查看工具运行情况
 
 ### 关闭命令
 任意路径下执行
-`screen -X -S foralive quit`
+```bash
+screen -X -S foralive quit
+```
 
 # 其它内容
 有意搭建一个网站，功能为 在线创建一个初始存档，包含所有必要内容，包括自定义世界设置与mod设置
