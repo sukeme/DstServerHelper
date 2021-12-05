@@ -1,0 +1,198 @@
+部分来自官方指南（https://forums.kleientertainment.com/forums/topic/64743-dedicated-server-command-line-options-guide/
+部分来自论坛收集（https://forums.kleientertainment.com）
+
+-persistent_storage_root
+    设置游戏配置目录的路径。路径需要是绝对路径。
+    用户文件的完整路径是
+    <persistent_storage_root>/<conf_dir>/
+    <conf_dir> 是通过 -conf_dir 设置的值
+    该值的默认值取决于平台：
+        Windows: <你的文档文件夹>/Klei
+        Mac OSX: <你的主文件夹>/Documents/Klei
+        Linux: ~/.klei
+
+
+-conf_dir
+    更改配置目录的名称，不包含斜杠
+    用户文件的完整路径是
+    <persistent_storage_root>/<conf_dir>/
+    <persistent_storage_root> 是通过 -persistent_storage_root 设置的值
+    默认值为：DoNotStarveTogether
+
+
+-cluster
+    设置此服务器将使用的存档目录的名称
+    服务器将期望在以下位置找到 cluster.ini 文件
+    <persistent_storage_root>/<conf_dir>/<cluster>/cluster.ini
+    默认值为：Cluster_1
+
+
+所以linux默认路径为 ./klei/DoNotStarveTogether/Cluster_1
+
+
+-shard
+    设置此服务器将使用的分片目录的名称
+    服务器将期望在以下位置找到 server.ini 文件
+    <persistent_storage_root>/<conf_dir>/<cluster>/<shard>/server.ini
+    默认值为：Master
+
+
+-offline
+    以离线模式启动服务器。在离线模式下，服务器不会公开列出，只有本地网络上的玩家才能加入，任何与 Steam 相关的功能都将无法使用。
+
+
+-disabledatacollection
+    禁用服务器的数据收集。
+    我们需要收集用户数据以提供在线服务。禁用数据收集的服务器只能在离线模式下使用。
+    有关我们的隐私政策以及我们如何使用我们收集的数据的更多详细信息，请参阅我们的官方隐私政策。
+    https://klei.com/privacy-policy
+
+
+-bind_ip  <bind_ip>
+    更改服务器在侦听播放器连接时绑定到的地址。这是大多数人不需要使用的高级功能
+
+
+-port <port_number>
+    有效值：1-65535
+    此服务器将监听的 UDP 端口。此选项会覆盖 server.ini 中的 [NETWORK] / server_port 设置。如果您正在运行多级集群，则每个服务器的此端口必须不同。
+    此端口必须介于 10998 和 11018 之间（包括 10998 和 11018），以便同一 LAN 上的玩家在其服务器列表中看到它。
+    低于 1024 的端口仅限于某些操作系统上的特权用户。
+    游戏创建存档的默认值为：地上10999，地下10998
+
+
+-players <max_players>
+    有效值：1-64
+    设置允许加入游戏的最大玩家人数。此选项会覆盖 cluster.ini 中的 [GAMEPLAY] / max_players 设置。
+
+
+-steam_master_server_port <port_number>
+    有效值：1-65535
+    steam使用的内部端口。此选项会覆盖 server.ini 中的 [STEAM] / master_server_port 设置。确保在同一台机器上运行的每台服务器都不同。
+
+
+-steam_authentication_port <port_number>
+    有效值：1-65535
+    steam使用的内部端口。此选项会覆盖 server.ini 中的 [STEAM] / authentication_port 设置。确保在同一台机器上运行的每台服务器都不同。
+
+
+-backup_log_count  <count_number>
+    运行服务器时自动创建的以前日志文件的备份数量，0表示不创建。超过设定数量后将覆盖掉最旧的文件
+    备份将存储在 server.ini 所在目录中名为“backup”的目录中。
+    默认每次都备份，数量100。
+    （其实等于没用，因为开启服务器时才会执行，然而执行之前游戏就会清除以前的日志文件，所以每次备份基本都是空的。憨憨行为，建议直接设为0关闭掉
+
+
+-tick <tick_rate>
+    有效值：15-60
+    这是服务器每秒向客户端发送数据的次数。增加此值可能会提高流畅度，但会导致更多的网络流量。此选项会覆盖 cluster.ini 中的 [NETWORK] / tick_rate 设置。
+    建议将其保留为默认值15。如果您确实更改了此选项，建议您仅对局域网游戏进行更改，并使用可整除为 60（15、20、30）的数字。
+
+
+
+
+Examples:
+
+    运行两级服务器的推荐方法是使用以下命令：（已经旧了，现在不需要 -console 选项
+    dontstarve_dedicated_server_nullrenderer -console -cluster MyClusterName -shard Master
+    dontstarve_dedicated_server_nullrenderer -console -cluster MyClusterName -shard Caves
+
+    这两个命令将使用以下配置文件运行两个专用服务器：
+    <Your Klei Folder>/MyClusterName/cluster.ini
+    <Your Klei Folder>/MyClusterName/Master/server.ini
+    <Your Klei Folder>/MyClusterName/Caves/server.ini
+
+    有关 <Your Klei Folder> 的位置，请参阅上面对 -persistent_storage_root 和 -conf_dir 选项的说明。
+
+    有关设置专用服务器的信息，请参阅以下指南之一
+
+    https://forums.kleientertainment.com/topic/64212-dedicated-server-quick-setup-guide-windows/
+    https://forums.kleientertainment.com/topic/64441-dedicated-server-quick-setup-guide-linux/
+    https://forums.kleientertainment.com/topic/64687-dedicated-server-quick-setup-guide-mac-os-x/
+
+
+-skip_update_server_mods
+    跳过mod更新
+-only_update_server_mods
+    只进行mod更新，注意：只会更新单世界
+    ./dontstarve_dedicated_server_nullrenderer -cluster MyDediServer -shard Master -shard Caves -only_update_server_mods
+-ugc_directory
+    专用服务器现在将 v2 mods 存储在 <install_directory>/ugc_mods/<ClusterDirectory>/<ShardDirectory>
+    （ClusterDirectory 和 ShardDirectory 分别是通过 -cluster 和 -shard 定义的值）
+    如果你想改变这个，你可以添加命令行参数
+    -ugc_directory <存储 v2 mods 的目录路径>
+./steamcmd.sh +login anonymous +workshop_download_item 322330 2623907145 +quit
+./steamcmd.sh +login anonymous +workshop_download_item <appid> <PublishedFileId>
+通过steam下载mod， 只支持v2mod。v1mod可以通过steam的api下载
+
+-monitor_parent_process $$
+    linux和osx可用。监控父进程同生共死？
+    当启动进程退出时，both/all shards 也退出。
+    测试是，启动进程退出时，启动的子进程都退出；退出或杀死一个子进程，所有进程都退出。
+
+
+klei发布的启动脚本  https://accounts.klei.com/assets/gamesetup/linux/run_dedicated_servers.sh
+
+
+-region (CHINA,SING,EU,US)
+    主动选择的注册大厅
+-backup_log_period 0
+    备份日志周期
+
+这两个不知道是不是win专用
+-ownernetid 76561198054254027
+    覆盖游戏自动使用的netid？
+-ownerdir 93988299
+    貌似是指定用户文件夹，win端可与游戏创建的用户文件夹匹配，其他不确定
+    设定后会作为<cluster>的父目录，<persistent_storage_root>/<conf_dir>/<ownerdir>/<cluster>
+    黑白管理员名单会在该目录下寻找，<persistent_storage_root>/<conf_dir>/<ownerdir>/<client_save>
+    其他不清楚
+-sigprefix DST_Master
+-backup_log_period 0
+
+
+SERVER_LEVEL_LOCATIONS = {"cave", "forest"}
+    反转主机创建世界时森林和洞穴的顺序，可以将洞穴作为主世界洞穴
+
+
+加入玩家创建的房间  R: 后接 steamid 项的内容
+TheNet:StartClient("0.0.0.0",10999,0,nil,"R:")
+
+
+[00:00:00]: Command Line Arguments: -monitor_parent_process 4348 -persistent_storage_root APP:Klei/ -conf_dir DoNotStarveTogether -cluster Cluster_3 -ownernetid 76561198054254027 -ownerdir 93988299 -backup_log_count 25 -backup_log_period 0 -ugc_directory E:\\SteamLibrary\\steamapps\\workshop -shard Master -sigprefix DST_Master -region EU
+
+-cloudserver
+    https://forums.kleientertainment.com/forums/topic/118972-unix-python-web-portal-for-dedicated-dst-server/
+    正如 nome 解释的那样，这是一个仅限 linux 的功能。
+    启动时，DST 专用服务器进程将尝试打开文件描述符 3、4 和 5。
+
+    - FD 3 是您应该发送以换行符终止的 Lua 命令的地方。
+    - FD 4 是您可以读取命令结果的地方。命令完成执行后，您将阅读“DST_RemoteCommandDone”行。
+    - FD 5 是您可以从专用服务器进程读取消息的地方。例如，服务器会在准备好后通知您，并会时不时地向您发送统计数据（连接的玩家数量等）。
+
+    为避免出现任何问题，请确保在尝试发送新的 Lua 命令之前等待“DST_RemoteCommandDone”信号。
+
+    要使其工作，您可能需要将“-cloudserver”标志传递给您的主世界 DST 进程。
+
+    测试：  # 并没有什么用，还不如用标准输入加读日志。
+        在启动命令加 -cloudserver ，然后指定文件描述符3、4、5
+        4、5正常重定向就可以，4>/home/fd4、5>/home/fd5
+        3的话指定文件会在开启时直接读取完毕，就end结束了。
+            尝试把标准输入定向到3 3<&1 后，可以工作了，不清楚正确使用方法是什么
+        fd3 貌似只会执行 c_ 等系统命令，其它如print("123")的，fd4中不会有Done，也没有其它输出，c_命令输入后会在fd4中输出结果，如
+            fd3
+                c_findnext("rocks")
+            fd4
+                Finding a 	rocks
+                Found 102764 (11/73)
+                DST_RemoteCommandDone
+        fd4 只会输出Done和部分有输出的命令的输出，对于大多数命令，只会输出Done
+        fd5 没有发现有什么用处
+            会在服务器开启后输出sessionID和端口
+                DST_SessionId|A41DF8B647889F87
+                DST_Master_Ready|10999
+            然后玩家数量变化的时候会输出玩家数量
+                DST_NumPlayersChanged|1
+            还有一个看不懂的数据
+                DST_Stats|1.082574,0.723780,0.063903,1,8
+            还会捕获ctrl+c，捕获之后什么也不发生
+                DST_Shutdown
