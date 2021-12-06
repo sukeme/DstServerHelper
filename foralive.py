@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # !/usr/bin/python3
 # 21.05.10 by suke
-# version 21.11.28
+# version 21.12.07
 
 """
 在本文件路径下运行开启指令。括号内内容，不带括号(screen -L -Logfile foralive.log -dmS foralive python3 foralive.py)
@@ -13,13 +13,13 @@
 需要关闭某功能请查看最底，使用前务必按需求设置
 如需自定义参数，在自定义参数中修改
 
-1.闲置超过设定时间后重置           默认 24小时
-2.天数达到设定天数后转无尽         默认 40天
-3.15分钟检测一次更新             默认 15分钟
-4.2分钟备份一次聊天记录           默认 2分钟
-5.15分钟检测一次mod更新          固定15分钟左右  # 暂不支持通过启动参数更改ugcmod文件夹的情况
-6.朴素的游戏进程守护，2分钟一次    默认 2分钟
-7.多层世界支持                  勉强算是支持了。各个世界对应的 文件夹和screen会话名 应该是没法自动检测，暂时只能用自己设置的办法
+1.闲置超时重置          默认 24 小时
+2.满天数转无尽          默认 40 天
+3.检测游戏更新          默认 15 分钟
+4.备份聊天记录          默认  2 分钟
+5.检测mod更新          固定 15 分钟左右
+6.游戏崩溃自启          默认  2 分钟
+7.多层世界支持
 
     待做     30天前12小时，30天后24小时  无人重置  # 不太必要
             监测cpu负载，高负载过久重启  # 条件很难判定，等好的想法
@@ -57,6 +57,7 @@ def active_time():
     except Exception as e:
         print(now(), 'activity_time函数出错')
         print(now('blank'), e)
+        return 0
 
 
 def table_dict(data_raw):  # 把meta文件的table转为dict
@@ -95,7 +96,7 @@ def meta_info(path_meta):
 def survival_days(world=None):
     global path_cluster, master_name
     world, mode = [world or master_name], (0, 1)[world is None]
-    day_info, newest_time, newest_path = {}, 0, ''
+    day_info, newest_time, newest_path = {'day': 0, 'passed_time': '', 'season': ''}, 0, ''
     try:
         meta_files = []
         for rt, dirs, files in walk(path_cluster):  # 检索存档内的快照文件，保存路径和修改时间
@@ -179,7 +180,7 @@ def endless(times=0, text=''):
 
         act_time = active_time()
         if not act_time:
-            print(now('blank'), '未找到玩家快照文件')
+            print(now('blank'), '不转为无尽 未找到玩家快照文件')
             t = change_time
             return
 
@@ -314,7 +315,7 @@ def update(tick=0, tick2=0):
     finally:
         tick += 1
         t = max(interval_update * 60 - (time() - time_start), 60)
-        Timer(t, update, [tick, tick2]).start()
+        Timer(t, update, [tick, tick2]).start()  # 间隔t秒后再次执行该函数
 
 
 def chatlog():
@@ -425,8 +426,8 @@ def parse_modacf(path_acf):
     return need_update
 
 
-def get_modlist(mode=0):  # 不支持自定义ugcmod文件夹
-    global path_cluster, path_dst, path_dst_bin, world_list
+def get_modlist(mode=0):
+    global path_cluster, path_dst, path_dst_bin, world_list, ugc_dir
     path_ugc_clu = pjoin(path_dst, 'ugc_mods', basename(path_cluster))
     path_mods = pjoin(path_dst, 'mods')
     mod_list, mod_lack_list, mod_single, mod_lack_single = [], [], {}, {}
@@ -447,7 +448,7 @@ def get_modlist(mode=0):  # 不支持自定义ugcmod文件夹
 
         if not mode:
             for world in world_list:  # 查找是否有mod尚未下载并提示。
-                path_ugc_world = pjoin(path_ugc_clu, world, 'content/322330')
+                path_ugc_world = pjoin(ugc_dir.get(world, '') or pjoin(path_ugc_clu, world), 'content', '322330')
                 mod_lack_single[world] = []
                 for mod_id in mod_single.get(world, []):
                     path_modinfo_1 = pjoin(path_mods, 'workshop-' + mod_id, 'modinfo.lua')
@@ -482,7 +483,7 @@ def write_mods_setup():
 
 
 def update_mod(tick=0, tick2=0, mode=0):
-    global path_cluster, path_dst, path_dst_bin, world_list
+    global path_cluster, path_dst, path_dst_bin, world_list, ugc_dir
     dir_clu = basename(path_cluster)
     path_ugc_clu = pjoin(path_dst, 'ugc_mods', basename(path_cluster))
     text_normal = '今日检测mod更新{}次，无可用更新'.format(tick)
@@ -500,7 +501,7 @@ def update_mod(tick=0, tick2=0, mode=0):
 
         for world in world_list:  # 通过steam acf文件获取已经下载的需要更新的modid
             need_update_dict[world] = []
-            path_acf = pjoin(path_ugc_clu, world, 'appworkshop_322330.acf')
+            path_acf = pjoin(ugc_dir.get(world, '') or pjoin(path_ugc_clu, world), 'appworkshop_322330.acf')
             if exists(path_acf):
                 acf_time.append(stat(path_acf).st_mtime)
                 need_update_dict[world] = parse_modacf(path_acf)
@@ -537,10 +538,11 @@ def update_mod(tick=0, tick2=0, mode=0):
         start_update = [world for world, world_val in need_update_dict.items() if world_val]
         for world in start_update:
             need_update = need_update_dict.get(world)
-            path_acf = pjoin(path_ugc_clu, world, 'appworkshop_322330.acf')
-            cmd = ['./dontstarve_dedicated_server_nullrenderer',
-                   '-cluster', dir_clu, '-shard', world, '-only_update_server_mods']
-
+            path_acf = pjoin(ugc_dir.get(world, '') or pjoin(path_ugc_clu, world), 'appworkshop_322330.acf')
+            cmd = ['./dontstarve_dedicated_server_nullrenderer_x64', '-cluster', dir_clu, '-shard', world]
+            if ugc_dir.get(world, ''):
+                cmd += ['-ugc_directory', ugc_dir.get(world, '')]
+            cmd += ['-only_update_server_mods']
             while True:
                 times += 1
                 out, err = send_cmd(cmd, cwd=path_dst_bin)
@@ -606,6 +608,7 @@ def auto_restart(all_status=None):
     text_right1 = b']: c_shutdown'
     text_right2 = b']: Shutting down'
     text_wrong = b'LUA ERROR stack traceback'
+    text_update_mod = b'FinishDownloadingServerMods Complete'
     log_name = 'server_log.txt'
     t = max(interval_restart * 60, 30)
     try:
@@ -638,7 +641,7 @@ def auto_restart(all_status=None):
                 if stat(path_log).st_size > 204800:  # 日志过大时只读取一部分。清理一次服务器加六玩家快照输出信息占428字节(50+63*6)
                     f.seek(-200000, 2)
                 data = f.read()
-            if text_right1 in data or (text_right2 in data and text_wrong not in data):
+            if text_right1 in data or text_update_mod in data or (text_right2 in data[-100:] and text_wrong not in data):
                 if status[0] != 0:
                     is_run[0] += 1
                     if is_run[0] == is_run_times:
@@ -678,7 +681,7 @@ def auto_restart(all_status=None):
         print(now('blank'), 'auto_restart函数出错')
         print(now('blank'), e)
     finally:
-        Timer(t, auto_restart, [all_status]).start()  # 间隔120秒后再次执行该函数
+        Timer(t, auto_restart, [all_status]).start()  # 间隔t秒后再次执行该函数
 
 
 def send_messages(mode, extra='', total_time=0):
@@ -740,7 +743,7 @@ def running(worldnames):  # 检查世界是否开启，参数为str时返回数�
 
 
 def start_world(world_names):  # str, iter
-    global path_cluster, path_dst_bin, screen_dir
+    global path_cluster, path_dst_bin, screen_dir, ugc_dir
     persistent_storage_root, conf_dir, cluster = path_cluster.rsplit('/', 2)  # 完整参数看 饥荒启动参数.txt
     world_names = [world_names] if isinstance(world_names, str) else world_names
     for world_name in world_names:
@@ -748,8 +751,10 @@ def start_world(world_names):  # str, iter
             print(now('blank'), '{}世界已在运行，取消开启'.format(world_name))
             continue
         cmd_start = ['screen', '-dmS', screen_dir.get(world_name),
-                     './dontstarve_dedicated_server_nullrenderer', '-persistent_storage_root', persistent_storage_root,
+                     './dontstarve_dedicated_server_nullrenderer_x64', '-persistent_storage_root', persistent_storage_root,
                      '-conf_dir', conf_dir, '-cluster', cluster, '-shard', world_name]
+        if ugc_dir.get(world_name, ''):
+            cmd_start += ['-ugc_directory', ugc_dir.get(world_name, '')]
         send_cmd(cmd_start, 120, path_dst_bin)
     sleep(1)
     for world_name in world_names:
@@ -783,7 +788,7 @@ def get_paths():  # 自动检测所需路径
     global path_steam_raw, path_steamcmd_raw, path_dst_raw, path_cluster_raw
     steam_file, steam_verify_1, steam_verify_2 = 'packageinfo.vdf', 'appcache', 'config'
     steamcmd_file, steamcmd_verify_1, steamcmd_verify_2 = 'steamcmd', 'linux32', 'steamcmd.sh'
-    dst_file, dst_verify_1, dst_verify_2 = 'dontstarve_dedicated_server_nullrenderer', 'bin', 'version.txt'
+    dst_file, dst_verify_1, dst_verify_2 = 'dontstarve_dedicated_server_nullrenderer_x64', 'bin64', 'version.txt'
     cluster_file, cluster_verify_1, cluster_verify_2 = 'cluster.ini', 'cluster_token.txt', 'Agreements'
 
     paths_steam, paths_steamcmd, paths_dst, paths_cluster = [], [], [], []
@@ -868,16 +873,15 @@ def gc_collect():
 
 
 if __name__ == "__main__":
-    # 自定义参数
-    path_steam_raw = ''      # 默认留空，需要自行指定路径时填写  如'/home/ubuntu/Steam'
-    path_steamcmd_raw = ''   # 默认留空，需要自行指定路径时填写  如'/home/ubuntu/steamcmd'
-    path_dst_raw = ''        # 默认留空，需要自行指定路径时填写  如'/home/ubuntu/dst'
-    path_cluster_raw = ''    # 默认留空，需要自行指定路径时填写  如'/home/ubuntu/.klei/DoNotStarveTogether/MyDediServer'
+    # ---自定义参数---自定义参数---自定义参数---
 
-    # 各个世界的文件夹名与其对应的screen名，第一个为主世界。
+    # -必填区-必填区-必填区-必填区-必填区-必填区-必填区-必填区-必填区-必填区-必填区-必填区-必填区-必填区-必填区-
+    # 各个世界的文件夹名与其对应的screen名，第一个为主世界。此项必须确保无误
     screen_dir = {'Master': 'DST_MASTER', 'Caves': 'DST_CAVES'}
-    # 结构  {'主世界文件夹': '主世界screen会话名', '世界二文件夹': '世界二screen会话名', '世界三文件夹': '世界三screen会话名', ...}
+    # 结构  {'主世界文件夹名': '主世界screen会话名', '世界二文件夹名': '世界二screen会话名', '世界三文件夹名': '世界三screen会话名', ...}
+    # -必填区-必填区-必填区-必填区-必填区-必填区-必填区-必填区-必填区-必填区-必填区-必填区-必填区-必填区-必填区-
 
+    # -选填区-选填区-选填区-选填区-选填区-选填区-选填区-选填区-选填区-选填区-选填区-选填区-选填区-选填区-选填区-
     all_interval = 2         # 重启服务器前发送公告的提前时间（单位/分钟）
     day_to_change = 40       # 转为无尽的天数，到达该天数5s后将会更改（单位/游戏天）
     interval_restart = 2     # 检测游戏是否崩溃的间隔时间（单位/分钟）
@@ -885,7 +889,19 @@ if __name__ == "__main__":
     rollback = 2             # 崩溃后尝试回档启动时允许的回档次数（单位/次）
     time_to_reset = 24       # 服务器无人自动重置时间（单位/小时）
     time_to_backupchat = 2   # 备份聊天记录的间隔时间（单位/分钟）
-    # 自定义参数
+    # -选填区-选填区-选填区-选填区-选填区-选填区-选填区-选填区-选填区-选填区-选填区-选填区-选填区-选填区-选填区-
+
+    # -没事别填区-没事别填区-没事别填区-没事别填区-没事别填区-没事别填区-没事别填区-没事别填区-没事别填区-没事别填区-
+    # 如果不懂什么意思，不要动下面这行。 如果自定义了 ugc_mods 路径，需要填写对应绝对路径。只需要填自定义了的世界，未定义不填或留空
+    ugc_dir = {'Master': '', 'Caves': ''}
+    # 结构  {'世界1文件夹名': '世界1的ugc_mods路径', '世界2文件夹名': '世界2的ugc_mods路径', ...}
+    path_steam_raw = ''      # 默认留空。需要自行指定路径时填写  如'/home/ubuntu/Steam'
+    path_steamcmd_raw = ''   # 默认留空。需要自行指定路径时填写  如'/home/ubuntu/steamcmd'
+    path_dst_raw = ''        # 默认留空。需要自行指定路径时填写  如'/home/ubuntu/dst'
+    path_cluster_raw = ''    # 默认留空。需要自行指定路径时填写  如'/home/ubuntu/.klei/DoNotStarveTogether/MyDediServer'
+    # -没事别填区-没事别填区-没事别填区-没事别填区-没事别填区-没事别填区-没事别填区-没事别填区-没事别填区-没事别填区-
+
+    # ---自定义参数---自定义参数---自定义参数---
 
     world_list = tuple([*screen_dir])
     master_name, screen_name_master = world_list[0], screen_dir.get(world_list[0])
@@ -893,7 +909,7 @@ if __name__ == "__main__":
     show_version()  # 打印版本
     gc_collect()
     path_steam, path_steamcmd, path_dst, path_cluster = get_paths()  # 自动检测所需路径
-    path_dst_bin = pjoin(path_dst, 'bin')
+    path_dst_bin = pjoin(path_dst, 'bin64')
 
     # 以下为功能区，不要哪个删哪行
     chatlog()                # 自动备份聊天记录 (删除该行将不会再定时备份聊天记录
