@@ -78,7 +78,7 @@
 -backup_log_count  <count_number>
     运行服务器时自动创建的以前日志文件的备份数量，0表示不创建。超过设定数量后将覆盖掉最旧的文件
     备份将存储在 server.ini 所在目录中名为“backup”的目录中。
-    默认每次都备份，数量100。
+    默认：100。
     （其实等于没用，因为开启服务器时才会执行，然而执行之前游戏就会清除以前的日志文件，所以每次备份基本都是空的。憨憨行为，建议直接设为0关闭掉
 
 
@@ -114,12 +114,13 @@ Examples:
     跳过mod更新
 -only_update_server_mods
     只进行mod更新，注意：只会更新单世界
-    ./dontstarve_dedicated_server_nullrenderer -cluster MyDediServer -shard Master -shard Caves -only_update_server_mods
+    ./dontstarve_dedicated_server_nullrenderer -cluster MyDediServer -shard Master -only_update_server_mods
 -ugc_directory
     专用服务器现在将 v2 mods 存储在 <install_directory>/ugc_mods/<ClusterDirectory>/<ShardDirectory>
     （ClusterDirectory 和 ShardDirectory 分别是通过 -cluster 和 -shard 定义的值）
     如果你想改变这个，你可以添加命令行参数
     -ugc_directory <存储 v2 mods 的目录路径>
+
 ./steamcmd.sh +login anonymous +workshop_download_item 322330 2623907145 +quit
 ./steamcmd.sh +login anonymous +workshop_download_item <appid> <PublishedFileId>
 通过steam下载mod， 只支持v2mod。v1mod可以通过steam的api下载
@@ -140,7 +141,7 @@ klei发布的启动脚本  https://accounts.klei.com/assets/gamesetup/linux/run_
 
 这两个不知道是不是win专用
 -ownernetid 76561198054254027
-    覆盖游戏自动使用的netid？
+    设置netid
 -ownerdir 93988299
     貌似是指定用户文件夹，win端可与游戏创建的用户文件夹匹配，其他不确定
     设定后会作为<cluster>的父目录，<persistent_storage_root>/<conf_dir>/<ownerdir>/<cluster>
