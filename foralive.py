@@ -44,15 +44,16 @@ from urllib.request import Request, urlopen
 
 def active_time():
     # 获取游戏目录下，所有玩家meta快照文件的最后修改时间。利用玩家快照文件进行判断，不受服务器重启影响。
-    global path_cluster
+    global path_cluster, world_list
     try:
         mtimes = []
-        for rt, dirs, files in walk(path_cluster):
-            for i in files:
-                if len(basename(rt)) == 12 and '.meta' in i:
-                    file_path = pjoin(rt, i)
-                    file_mtime = stat(file_path).st_mtime
-                    mtimes.append(file_mtime)
+        path_worlds = [pjoin(path_cluster, world) for world in world_list]
+        for path_world in path_worlds:
+            for rt, dirs, files in walk(str(path_world)):  # 不转str，就提示下面的'.meta'应为'bytes'，为什么
+                if len(basename(rt)) == 12:
+                    for i in files:
+                        if '.meta' in i:
+                            mtimes.append(stat(pjoin(rt, i)).st_mtime)
         return sorted(mtimes)[-1] if mtimes else 0
     except Exception as e:
         print(now(), 'activity_time函数出错')
@@ -100,13 +101,13 @@ def survival_days(world=None):
     try:
         meta_files = []
         for rt, dirs, files in walk(path_cluster):  # 检索存档内的快照文件，保存路径和修改时间
-            for file in files:
-                if len(basename(rt)) == 16 and file.endswith('.meta') and rt.split(sep)[-4] in world:
-                    file_path = pjoin(rt, file)
-                    if exists(file_path):  # 检查一下，避免极特殊情况
+            if len(basename(rt)) == 16 and rt.split(sep)[-4] in world:
+                for file in files:
+                    if file.endswith('.meta'):
+                        file_path = pjoin(rt, file)
                         file_mtime = stat(file_path).st_mtime
                         meta_files.append((file_path, file_mtime))
-        if meta_files:  # 筛选出最新快照，返回天数信息、修改时间、路径
+        if meta_files:  # 筛选出最新快照，返回天数信息、修改时间或路径
             meta_file = sorted(meta_files, key=lambda x: x[1])[-1]
             day_info = meta_info(meta_file[0])
             newest_path = meta_file[0]
@@ -546,7 +547,7 @@ def update_mod(tick=0, tick2=0, mode=0):
             while True:
                 times += 1
                 out, err = send_cmd(cmd, cwd=path_dst_bin)
-                if 'FinishDownloadingServerMods Complete' in out:
+                if ']: FinishDownloadingServerMods Complete!' in out:
                     update_fail = []
                     need_update_also = parse_modacf(path_acf)
                     for modid in need_update:
@@ -608,7 +609,7 @@ def auto_restart(all_status=None):
     text_right1 = b']: c_shutdown'
     text_right2 = b']: Shutting down'
     text_wrong = b'LUA ERROR stack traceback'
-    text_update_mod = b'FinishDownloadingServerMods Complete'
+    text_update_mod = b']: FinishDownloadingServerMods Complete!'
     log_name = 'server_log.txt'
     t = max(interval_restart * 60, 30)
     try:
@@ -638,16 +639,18 @@ def auto_restart(all_status=None):
                 is_run[0] = 0
                 continue
             with open(path_log, 'rb') as f:
-                if stat(path_log).st_size > 204800:  # 日志过大时只读取一部分。清理一次服务器加六玩家快照输出信息占428字节(50+63*6)
+                if stat(path_log).st_size > 204800:  # 日志过大时只读取一部分。清理一份世界快照加六玩家快照输出信息占428字节(50+63*6)
                     f.seek(-200000, 2)
                 data = f.read()
-            if text_right1 in data or text_update_mod in data or (text_right2 in data[-100:] and text_wrong not in data):
+            if text_right1 in data or (text_right2 in data[-99:] and text_wrong not in data):
                 if status[0] != 0:
                     is_run[0] += 1
                     if is_run[0] == is_run_times:
                         print(now(), text_restarted if status[0] == 9999 else text_sucess)
                         is_run[0], status[0] = 0, 0
                 continue
+            if text_update_mod in data[-99:]:  # 检测更新mod特征信息，以免在世界关闭情况下更新mod后被判定为崩溃
+                continue  # 只检测末尾字符，避免更新完mod后世界崩溃带来的误判
 
             is_run[0] = 0
             if status[0] == 0:
@@ -706,15 +709,13 @@ def send_messages(mode, extra='', total_time=0):
 def send_cmd(cmd, timeout=120, cwd=None, inputs=None):  # cmd: list or tuple, inputs: str, cwd: path, timeout: int
     # print(now(), 'send', cmd)
     stdin = PIPE if inputs else None
-    process = Popen(cmd, stdin=stdin, stdout=PIPE, stderr=PIPE, cwd=cwd, start_new_session=True)
+    process = Popen(cmd, stdin=stdin, stdout=PIPE, stderr=PIPE, cwd=cwd, start_new_session=True, universal_newlines=True)
     try:  # start_new_session 创建进程组包含打开的进程，用于超时后一并关闭。自带的kill有问题，比如kill后显示为僵尸进程，执行完毕才结束
         out, err = process.communicate(inputs, timeout=timeout)
-        out, err = out.decode('utf-8', 'ignore'), err.decode('utf-8', 'ignore')
     except TimeoutExpired:
         killpg(process.pid, SIGTERM)
-        print(now('blank'), '执行shell命令超时：{}'.format(' '.join(cmd)))
+        print(now(), '执行shell命令超时：{}'.format(' '.join(cmd)))
         out, err = process.communicate()
-        out, err = out.decode('utf-8', 'ignore'), err.decode('utf-8', 'ignore')
         err = err or '执行shell命令超时'
     return out, err
 
@@ -732,6 +733,8 @@ def running(worldnames):  # 检查世界是否开启，参数为str时返回数�
     worldnames, result = [worldnames] if status else worldnames, []
     try:
         stout, _ = send_cmd(['screen', '-wipe'], 10)  # 清理无效的screen会话并获取运行中的screen会话
+        if 'Sockets' not in stout:  # 如果结果中没有'Sockets'，认为执行命令失败
+            return 1 if status else tuple(1 for _ in worldnames)
         stout = ''.join([i for i in stout.split('\n') if '(Removed)' not in i])
         stout = findall(r'\t\d+\.([\d\D]*?)\t', stout)  # 匹配出screen会话名
         for worldname in worldnames:
@@ -852,8 +855,8 @@ def get_cluster_time(path_):
     return max(mtime) if mtime else 0
 
 
-def now(mode=(0.0 or '' or None)):  # 无参数返回当前格式化时间 float参数返回对应格式化时间 其它参数返回等长空格
-    if mode is None or isinstance(mode, float):
+def now(mode=(0.0 or 0 or '' or None)):  # 无参数返回当前格式化时间 int/float参数返回对应格式化时间 其它参数返回等长空格
+    if mode is None or isinstance(mode, (int, float)):
         return strftime("%Y.%m.%d %H:%M:%S", localtime(mode))
     return '{:19}'.format('')
 
