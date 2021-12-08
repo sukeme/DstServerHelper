@@ -1,7 +1,7 @@
+#!/usr/bin/python3
 # -*- coding: utf-8 -*-
-# !/usr/bin/python3
 # 21.05.10 by suke
-# version 21.12.07
+# version 21.12.08
 
 """
 在本文件路径下运行开启指令。括号内内容，不带括号(screen -L -Logfile foralive.log -dmS foralive python3 foralive.py)
@@ -733,7 +733,7 @@ def running(worldnames):  # 检查世界是否开启，参数为str时返回数�
     worldnames, result = [worldnames] if status else worldnames, []
     try:
         stout, _ = send_cmd(['screen', '-wipe'], 10)  # 清理无效的screen会话并获取运行中的screen会话
-        if 'Sockets' not in stout:  # 如果结果中没有'Sockets'，认为执行命令失败
+        if 'Socket' not in stout:  # 如果结果中没有'Socket'，认为执行命令失败
             return 1 if status else tuple(1 for _ in worldnames)
         stout = ''.join([i for i in stout.split('\n') if '(Removed)' not in i])
         stout = findall(r'\t\d+\.([\d\D]*?)\t', stout)  # 匹配出screen会话名
