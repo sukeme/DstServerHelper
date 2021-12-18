@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
 # 21.05.10 by suke
-# version 21.12.08
+# version 21.12.18
 
 """
 在本文件路径下运行开启指令。括号内内容，不带括号(screen -L -Logfile foralive.log -dmS foralive python3 foralive.py)
@@ -260,7 +260,12 @@ def update(tick=0, tick2=0):
         if not buildids_new:
             if 'Timed out waiting for AppInfo update.' in out1:
                 err1, out1 = '更新appinfo超时', ''
-            err1 = '\n'.join(line for line in err1.split('\n') if '): ignored.' not in line)  # 去除被忽略的错误
+            if '(Service Unavailable)' in out1:
+                err1, out1 = '服务器繁忙', ''
+            err1 = '\n'.join(line for line in err1.split('\n')
+                             if '): ignored.' not in line)  # 去除被忽略的错误
+            out1 = '\n'.join(line for line in out1.split('\n')
+                             if 'Warning: ' not in line)  # 去除警告
             print(now(), '检测最新buildid失败，耗时：{0}，原因：{1}'.format(time() - test_start, err1))
             print(now(), out1) if out1 else 0
             return
@@ -709,7 +714,8 @@ def send_messages(mode, extra='', total_time=0):
 def send_cmd(cmd, timeout=120, cwd=None, inputs=None):  # cmd: list or tuple, inputs: str, cwd: path, timeout: int
     # print(now(), 'send', cmd)
     stdin = PIPE if inputs else None
-    process = Popen(cmd, stdin=stdin, stdout=PIPE, stderr=PIPE, cwd=cwd, start_new_session=True, universal_newlines=True)
+    process = Popen(cmd, stdin=stdin, stdout=PIPE, stderr=PIPE, cwd=cwd, start_new_session=True,
+                    universal_newlines=True)
     try:  # start_new_session 创建进程组包含打开的进程，用于超时后一并关闭。自带的kill有问题，比如kill后显示为僵尸进程，执行完毕才结束
         out, err = process.communicate(inputs, timeout=timeout)
     except TimeoutExpired:
@@ -754,7 +760,8 @@ def start_world(world_names):  # str, iter
             print(now('blank'), '{}世界已在运行，取消开启'.format(world_name))
             continue
         cmd_start = ['screen', '-dmS', screen_dir.get(world_name),
-                     './dontstarve_dedicated_server_nullrenderer_x64', '-persistent_storage_root', persistent_storage_root,
+                     './dontstarve_dedicated_server_nullrenderer_x64', '-persistent_storage_root',
+                     persistent_storage_root,
                      '-conf_dir', conf_dir, '-cluster', cluster, '-shard', world_name]
         if ugc_dir.get(world_name, ''):
             cmd_start += ['-ugc_directory', ugc_dir.get(world_name, '')]
@@ -885,23 +892,23 @@ if __name__ == "__main__":
     # -必填区-必填区-必填区-必填区-必填区-必填区-必填区-必填区-必填区-必填区-必填区-必填区-必填区-必填区-必填区-
 
     # -选填区-选填区-选填区-选填区-选填区-选填区-选填区-选填区-选填区-选填区-选填区-选填区-选填区-选填区-选填区-
-    all_interval = 2         # 重启服务器前发送公告的提前时间（单位/分钟）
-    day_to_change = 40       # 转为无尽的天数，到达该天数5s后将会更改（单位/游戏天）
-    interval_restart = 2     # 检测游戏是否崩溃的间隔时间（单位/分钟）
-    interval_update = 15     # 检测游戏更新的间隔时间（单位/分钟）
-    rollback = 2             # 崩溃后尝试回档启动时允许的回档次数（单位/次）
-    time_to_reset = 24       # 服务器无人自动重置时间（单位/小时）
-    time_to_backupchat = 2   # 备份聊天记录的间隔时间（单位/分钟）
+    all_interval = 2  # 重启服务器前发送公告的提前时间（单位/分钟）
+    day_to_change = 40  # 转为无尽的天数，到达该天数5s后将会更改（单位/游戏天）
+    interval_restart = 2  # 检测游戏是否崩溃的间隔时间（单位/分钟）
+    interval_update = 15  # 检测游戏更新的间隔时间（单位/分钟）
+    rollback = 2  # 崩溃后尝试回档启动时允许的回档次数（单位/次）
+    time_to_reset = 24  # 服务器无人自动重置时间（单位/小时）
+    time_to_backupchat = 2  # 备份聊天记录的间隔时间（单位/分钟）
     # -选填区-选填区-选填区-选填区-选填区-选填区-选填区-选填区-选填区-选填区-选填区-选填区-选填区-选填区-选填区-
 
     # -没事别填区-没事别填区-没事别填区-没事别填区-没事别填区-没事别填区-没事别填区-没事别填区-没事别填区-没事别填区-
     # 如果不懂什么意思，不要动下面这行。 如果自定义了 ugc_mods 路径，需要填写对应绝对路径。只需要填自定义了的世界，未定义不填或留空
     ugc_dir = {'Master': '', 'Caves': ''}
     # 结构  {'世界1文件夹名': '世界1的ugc_mods路径', '世界2文件夹名': '世界2的ugc_mods路径', ...}
-    path_steam_raw = ''      # 默认留空。需要自行指定路径时填写  如'/home/ubuntu/Steam'
-    path_steamcmd_raw = ''   # 默认留空。需要自行指定路径时填写  如'/home/ubuntu/steamcmd'
-    path_dst_raw = ''        # 默认留空。需要自行指定路径时填写  如'/home/ubuntu/dst'
-    path_cluster_raw = ''    # 默认留空。需要自行指定路径时填写  如'/home/ubuntu/.klei/DoNotStarveTogether/MyDediServer'
+    path_steam_raw = ''  # 默认留空。需要自行指定路径时填写  如'/home/ubuntu/Steam'
+    path_steamcmd_raw = ''  # 默认留空。需要自行指定路径时填写  如'/home/ubuntu/steamcmd'
+    path_dst_raw = ''  # 默认留空。需要自行指定路径时填写  如'/home/ubuntu/dst'
+    path_cluster_raw = ''  # 默认留空。需要自行指定路径时填写  如'/home/ubuntu/.klei/DoNotStarveTogether/MyDediServer'
     # -没事别填区-没事别填区-没事别填区-没事别填区-没事别填区-没事别填区-没事别填区-没事别填区-没事别填区-没事别填区-
 
     # ---自定义参数---自定义参数---自定义参数---
@@ -915,10 +922,10 @@ if __name__ == "__main__":
     path_dst_bin = pjoin(path_dst, 'bin64')
 
     # 以下为功能区，不要哪个删哪行
-    chatlog()                # 自动备份聊天记录 (删除该行将不会再定时备份聊天记录
-    reset()                  # 检测是否需要重置 (删除该行将不会再检测是否需要重置
+    chatlog()  # 自动备份聊天记录 (删除该行将不会再定时备份聊天记录
+    reset()  # 检测是否需要重置 (删除该行将不会再检测是否需要重置
     # 无尽模式下主动重置世界并改为生存会导致自动转无尽有一定的延迟。因为无尽模式下检测间隔为：自动重置时间加自动转无尽时间
-    endless()                # 检测是否需要转为无尽 (删除该行将不会再检测是否需要转为无尽
-    update()                 # 检测是否存在并执行更新 (删除该行将不会再检测是否存在并进行更新
-    update_mod()             # 检测是否存在并执行mod更新 (删除该行将不会再检测是否存在并进行mod更新
-    auto_restart()           # 检测到游戏崩溃后自动启动 (删除该行将不会再守护游戏进程
+    endless()  # 检测是否需要转为无尽 (删除该行将不会再检测是否需要转为无尽
+    update()  # 检测是否存在并执行更新 (删除该行将不会再检测是否存在并进行更新
+    update_mod()  # 检测是否存在并执行mod更新 (删除该行将不会再检测是否存在并进行mod更新
+    auto_restart()  # 检测到游戏崩溃后自动启动 (删除该行将不会再守护游戏进程
