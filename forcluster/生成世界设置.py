@@ -1,3 +1,5 @@
+##!/usr/bin/python3
+# -*- coding: utf-8 -*-
 r"""https://forums.kleientertainment.com/forums/topic/53014-worldgenoverridelua-with-the-new-post-caves-settings/page/5/"""
 
 r"""
