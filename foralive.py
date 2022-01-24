@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
 # 21.05.10 by suke
-# version 21.12.18
+# version 22.01.14
 
 """
 在本文件路径下运行开启指令。括号内内容，不带括号(screen -L -Logfile foralive.log -dmS foralive python3 foralive.py)
@@ -10,7 +10,7 @@
 
 在运行前要做的有两件事：1.确保自定义参数中 screen_dir 项准确无误；2.关闭不需要的功能
 
-需要关闭某功能请查看最底，使用前务必按需求设置
+需要关闭某功能请查看文件最底，使用前务必按需求设置
 如需自定义参数，在自定义参数中修改
 
 1.闲置超时重置          默认 24 小时
@@ -21,7 +21,8 @@
 6.游戏崩溃自启          默认  2 分钟
 7.多层世界支持
 
-    待做     30天前12小时，30天后24小时  无人重置  # 不太必要
+    待做     怎么才能做到自动识别世界对应的screen作业名呢
+            30天前12小时，30天后24小时  无人重置  # 不太必要
             监测cpu负载，高负载过久重启  # 条件很难判定，等好的想法
 
 
@@ -76,7 +77,7 @@ def meta_info(path_meta):
     with open(path_meta, 'r', encoding='utf-8') as f:
         data = f.read()
     meta_dict = table_dict(data)
-    day = meta_dict.get('clock', {}).get('cycles', -1) + 1  # 更多数据看cluster_meta.py注释
+    day = meta_dict.get('clock', {}).get('cycles', -1) + 1  # 当前天数
     passed_season = meta_dict.get('seasons', {}).get('elapseddaysinseason', 0)  # 季节已过天数
     phase = meta_dict.get('clock', {}).get('phase', '')  # 当前阶段
     remaining_season = meta_dict.get('seasons', {}).get('remainingdaysinseason', 0)  # 季节剩余天数
@@ -259,7 +260,7 @@ def update(tick=0, tick2=0):
         buildids_new = findall(r'"branches"[\d\D]*?"public"[\d\D]*?"buildid"\s*"(\d+)"', out1)
         if not buildids_new:
             if 'Timed out waiting for AppInfo update.' in out1:
-                err1, out1 = '更新appinfo超时', ''
+                err1, out1 = '更新 appinfo 超时', ''
             if '(Service Unavailable)' in out1:
                 err1, out1 = '服务器繁忙', ''
             err1 = '\n'.join(line for line in err1.split('\n')
@@ -681,7 +682,7 @@ def auto_restart(all_status=None):
                 status[0] = 9999
                 print(now(), '{}进程启动失败，恢复操作前存档，暂停守护'.format(world))
                 mkdir(path_tmp) if not exists(path_tmp) else 0
-                send_cmd(cmd_untar, cwd=path_clu)  # 释放临时存档
+                send_cmd(cmd_untar, cwd=path_clu)  # 释放旧存档
                 rmtree(pjoin(path_cluster, world))  # 删除当前存档
                 copytree(pjoin(path_tmp, cluster, world), pjoin(path_cluster, world))  # 恢复旧存档
                 rmtree(path_tmp)  # 删除临时存档
@@ -704,30 +705,15 @@ def send_messages(mode, extra='', total_time=0):
     total_time = total_time or messages.get(mode).get('total_time')
     for interval in intervals:
         msg = '{0}󰀅服务器将于{1}s后重启，预计重启后{2}s可重新连接󰀅'.format(message, int(all_interval_s), total_time)
-        cmd_message = ['screen', '-x', '-S', screen_name_master, '-p', '0', '-X', 'stuff',
+        cmd_message = ['screen', '-S', screen_name_master, '-X', 'stuff',
                        'TheNet:SystemMessage("{}")\n'.format(msg)]
         send_cmd(cmd_message)
         all_interval_s -= interval
         sleep(interval)
 
 
-def send_cmd(cmd, timeout=120, cwd=None, inputs=None):  # cmd: list or tuple, inputs: str, cwd: path, timeout: int
-    # print(now(), 'send', cmd)
-    stdin = PIPE if inputs else None
-    process = Popen(cmd, stdin=stdin, stdout=PIPE, stderr=PIPE, cwd=cwd, start_new_session=True,
-                    universal_newlines=True)
-    try:  # start_new_session 创建进程组包含打开的进程，用于超时后一并关闭。自带的kill有问题，比如kill后显示为僵尸进程，执行完毕才结束
-        out, err = process.communicate(inputs, timeout=timeout)
-    except TimeoutExpired:
-        killpg(process.pid, SIGTERM)
-        print(now(), '执行shell命令超时：{}'.format(' '.join(cmd)))
-        out, err = process.communicate()
-        err = err or '执行shell命令超时'
-    return out, err
-
-
 def running(worldnames):  # 检查世界是否开启，参数为str时返回数字，iter时返回列表
-    # 或许会添加tmux支持  http://louiszhai.github.io/2017/09/30/tmux
+    # 不会添加tmux支持  http://louiszhai.github.io/2017/09/30/tmux
     # tmux has-session -t session1
     # tmux kill-session -t session1
     # tmux kill-server  # close, kill all
@@ -747,7 +733,7 @@ def running(worldnames):  # 检查世界是否开启，参数为str时返回数�
             result += [1] if screen_dir.get(worldname) in stout else [0]
         return result[0] if status else tuple(result)
     except Exception as e:
-        print(now('blank'), '检测游戏进程是否存在失败：{}'.format(e))
+        print(now('blank'), f'检测游戏进程是否存在失败：{e}')
         return 1 if status else tuple(1 for _ in worldnames)
 
 
@@ -759,19 +745,20 @@ def start_world(world_names):  # str, iter
         if running(world_name):
             print(now('blank'), '{}世界已在运行，取消开启'.format(world_name))
             continue
-        cmd_start = ['screen', '-dmS', screen_dir.get(world_name),
-                     './dontstarve_dedicated_server_nullrenderer_x64', '-persistent_storage_root',
-                     persistent_storage_root,
+        cmd_start = ['screen', '-dmS', screen_dir.get(world_name), './dontstarve_dedicated_server_nullrenderer_x64',
+                     '-persistent_storage_root', persistent_storage_root,
                      '-conf_dir', conf_dir, '-cluster', cluster, '-shard', world_name]
         if ugc_dir.get(world_name, ''):
-            cmd_start += ['-ugc_directory', ugc_dir.get(world_name, '')]
+            cmd_start += ['-ugc_directory', ugc_dir.get(world_name)]
         send_cmd(cmd_start, 120, path_dst_bin)
     sleep(1)
+    sucess, fail = [], []
     for world_name in world_names:
-        if not running(world_name):
-            print(now('blank'), '未能开启世界{0}。'.format(world_name))
-        else:
-            print(now('blank'), '已经开启世界{0}。'.format(world_name))
+        sucess.append(world_name) if running(world_name) else fail.append(world_name)
+    if sucess:
+        print(now('blank'), '已经开启世界 {0}'.format('、'.join(sucess)))
+    if fail:
+        print(now('blank'), '未能开启世界 {0}'.format('、'.join(fail)))
 
 
 def stop_world(world_names):  # str, iter
@@ -779,10 +766,12 @@ def stop_world(world_names):  # str, iter
     world_names = [world_names] if isinstance(world_names, str) else world_names
     for world_name in world_names:
         send_cmd(['screen', '-wipe'])  # 清理无效的screen会话
-        cmd_stop = ['screen', '-x', '-S', screen_dir.get(world_name), '-p', '0', '-X', 'stuff', 'c_shutdown(true)\n']
+        cmd_stop = ['screen', '-S', screen_dir.get(world_name), '-X', 'stuff', 'c_shutdown(true)\n']
         send_cmd(cmd_stop)
     sleep(9)
+    world_num = 0
     for world_name in world_names:
+        world_num += 1
         if running(world_name):
             cmd_pid = ['ps', '-ef']
             cmd_kill = ['xargs', 'kill', '-9']
@@ -791,7 +780,32 @@ def stop_world(world_names):  # str, iter
             pid_list = [i.split()[1] for i in send_cmd(cmd_pid)[0].split('\n') if screen_name in i and 'dontstarv' in i]
             send_cmd(cmd_kill, inputs='\n'.join(pid_list))
         else:
-            print(now('blank'), '已经关闭世界{0}。'.format(world_name))
+            if world_num == 1:
+                text = f'{now("blank")} 已经关闭世界 {world_name}'
+            else:
+                text = f'、{world_name}'
+            print(text)
+
+
+def send_cmd(cmd, timeout=120, cwd=None, inputs=None):  # cmd: list or tuple, inputs: str, cwd: path, timeout: int
+    # print(now(), 'send', cmd)
+    stdin = PIPE if inputs else None
+    process = Popen(cmd, stdin=stdin, stdout=PIPE, stderr=PIPE, cwd=cwd, start_new_session=True,
+                    universal_newlines=True)
+    try:  # start_new_session 创建进程组包含打开的进程，用于超时后一并关闭。自带的kill有问题，比如kill后显示为僵尸进程，执行完毕才结束
+        out, err = process.communicate(inputs, timeout=timeout)
+    except TimeoutExpired:
+        killpg(process.pid, SIGTERM)
+        print(now(), '执行shell命令超时：{}'.format(' '.join(cmd)))
+        out, err = process.communicate()
+        err = err or '执行shell命令超时'
+    return out, err
+
+
+def now(mode=(0.0 or 0 or '' or None)):  # 无参数返回当前格式化时间 int/float参数返回对应格式化时间 其它参数返回等长空格
+    if mode is None or isinstance(mode, (int, float)):
+        return strftime("%Y.%m.%d %H:%M:%S", localtime(mode))
+    return '{:19}'.format('')
 
 
 def get_paths():  # 自动检测所需路径
@@ -862,12 +876,6 @@ def get_cluster_time(path_):
     return max(mtime) if mtime else 0
 
 
-def now(mode=(0.0 or 0 or '' or None)):  # 无参数返回当前格式化时间 int/float参数返回对应格式化时间 其它参数返回等长空格
-    if mode is None or isinstance(mode, (int, float)):
-        return strftime("%Y.%m.%d %H:%M:%S", localtime(mode))
-    return '{:19}'.format('')
-
-
 def show_version():
     global path
     pattern = r'version \d\d\.\d\d\.\d\d'
@@ -892,12 +900,12 @@ if __name__ == "__main__":
     # -必填区-必填区-必填区-必填区-必填区-必填区-必填区-必填区-必填区-必填区-必填区-必填区-必填区-必填区-必填区-
 
     # -选填区-选填区-选填区-选填区-选填区-选填区-选填区-选填区-选填区-选填区-选填区-选填区-选填区-选填区-选填区-
-    all_interval = 2  # 重启服务器前发送公告的提前时间（单位/分钟）
-    day_to_change = 40  # 转为无尽的天数，到达该天数5s后将会更改（单位/游戏天）
-    interval_restart = 2  # 检测游戏是否崩溃的间隔时间（单位/分钟）
-    interval_update = 15  # 检测游戏更新的间隔时间（单位/分钟）
-    rollback = 2  # 崩溃后尝试回档启动时允许的回档次数（单位/次）
-    time_to_reset = 24  # 服务器无人自动重置时间（单位/小时）
+    all_interval = 2        # 重启服务器前发送公告的提前时间（单位/分钟）
+    day_to_change = 40      # 转为无尽的天数，到达该天数5s后将会更改（单位/游戏天）
+    interval_restart = 2    # 检测游戏是否崩溃的间隔时间（单位/分钟）
+    interval_update = 15    # 检测游戏更新的间隔时间（单位/分钟）
+    rollback = 2            # 崩溃后尝试回档启动时允许的回档次数（单位/次）
+    time_to_reset = 24      # 服务器无人自动重置时间（单位/小时）
     time_to_backupchat = 2  # 备份聊天记录的间隔时间（单位/分钟）
     # -选填区-选填区-选填区-选填区-选填区-选填区-选填区-选填区-选填区-选填区-选填区-选填区-选填区-选填区-选填区-
 
@@ -905,10 +913,10 @@ if __name__ == "__main__":
     # 如果不懂什么意思，不要动下面这行。 如果自定义了 ugc_mods 路径，需要填写对应绝对路径。只需要填自定义了的世界，未定义不填或留空
     ugc_dir = {'Master': '', 'Caves': ''}
     # 结构  {'世界1文件夹名': '世界1的ugc_mods路径', '世界2文件夹名': '世界2的ugc_mods路径', ...}
-    path_steam_raw = ''  # 默认留空。需要自行指定路径时填写  如'/home/ubuntu/Steam'
+    path_steam_raw = ''     # 默认留空。需要自行指定路径时填写  如'/home/ubuntu/Steam'
     path_steamcmd_raw = ''  # 默认留空。需要自行指定路径时填写  如'/home/ubuntu/steamcmd'
-    path_dst_raw = ''  # 默认留空。需要自行指定路径时填写  如'/home/ubuntu/dst'
-    path_cluster_raw = ''  # 默认留空。需要自行指定路径时填写  如'/home/ubuntu/.klei/DoNotStarveTogether/MyDediServer'
+    path_dst_raw = ''       # 默认留空。需要自行指定路径时填写  如'/home/ubuntu/dst'
+    path_cluster_raw = ''   # 默认留空。需要自行指定路径时填写  如'/home/ubuntu/.klei/DoNotStarveTogether/MyDediServer'
     # -没事别填区-没事别填区-没事别填区-没事别填区-没事别填区-没事别填区-没事别填区-没事别填区-没事别填区-没事别填区-
 
     # ---自定义参数---自定义参数---自定义参数---
@@ -917,15 +925,15 @@ if __name__ == "__main__":
     master_name, screen_name_master = world_list[0], screen_dir.get(world_list[0])
     path = abspath(getsourcefile(lambda: 0))  # 获取本文件所在目录绝对路径
     show_version()  # 打印版本
-    gc_collect()
+    gc_collect()  # 内存回收
     path_steam, path_steamcmd, path_dst, path_cluster = get_paths()  # 自动检测所需路径
     path_dst_bin = pjoin(path_dst, 'bin64')
 
     # 以下为功能区，不要哪个删哪行
-    chatlog()  # 自动备份聊天记录 (删除该行将不会再定时备份聊天记录
-    reset()  # 检测是否需要重置 (删除该行将不会再检测是否需要重置
+    chatlog()              # 自动备份聊天记录 (删除该行将不会再定时备份聊天记录
+    reset()                # 检测是否需要重置 (删除该行将不会再检测是否需要重置
     # 无尽模式下主动重置世界并改为生存会导致自动转无尽有一定的延迟。因为无尽模式下检测间隔为：自动重置时间加自动转无尽时间
-    endless()  # 检测是否需要转为无尽 (删除该行将不会再检测是否需要转为无尽
-    update()  # 检测是否存在并执行更新 (删除该行将不会再检测是否存在并进行更新
-    update_mod()  # 检测是否存在并执行mod更新 (删除该行将不会再检测是否存在并进行mod更新
-    auto_restart()  # 检测到游戏崩溃后自动启动 (删除该行将不会再守护游戏进程
+    endless()              # 检测是否需要转为无尽 (删除该行将不会再检测是否需要转为无尽
+    update()               # 检测是否存在并执行更新 (删除该行将不会再检测是否存在并进行更新
+    update_mod()           # 检测是否存在并执行mod更新 (删除该行将不会再检测是否存在并进行mod更新
+    auto_restart()         # 检测到游戏崩溃后自动启动 (删除该行将不会再守护游戏进程
