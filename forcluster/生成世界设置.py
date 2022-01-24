@@ -54,12 +54,13 @@ import os
 import time
 from functools import reduce
 from os.path import join as pjoin
-from re import compile, sub
+from re import compile, findall, search, sub
 
 import lupa
 
 start = time.time()
-path_dir = r"C:\Program Files (x86)\Steam\steamapps\common\Don't Starve Together\data\databundles\scripts"
+path_base = r"C:\Program Files (x86)\Steam\steamapps\common\Don't Starve Together\data"
+path_script = pjoin(path_base, r'databundles\scripts')
 po_chs = r'languages/chinese_s.po'
 lua_customize = r'map/customize'  # 务必用正斜杠避免问题。lua 内部 require 会用正斜杠，两个不一样的话操作对应模块时会有坑
 
@@ -110,12 +111,14 @@ def parse_po(path_po):  # 把 po 文件按照 msgctxt: msgstr 的格式转为字
     dict_zh = {i[0]: i[2] for i in pattern.findall(data)}  # 因为 costomize 中有连接字符串的，所以这里不能构建成一个字典，会出错
     for i, j in dict_zh.items():
         split_key(dict_zh_split, i.split("."), j)
+
     dict_en = {i[0]: i[1] for i in pattern.findall(data)}  # 因为 costomize 中有连接字符串的，所以这里不能构建成一个字典，会出错
     for i, j in dict_en.items():
         split_key(dict_en_split, i.split("."), j)
 
-    dict_split = {'zh': dict_zh_split, 'en': dict_en_split}
-    # dict_split = {'zh': dict_zh_split}
+    dict_split = {'zh': dict_zh_split}
+    if dict_en_split:
+        dict_split['en'] = dict_en_split
     return dict_split
 
 
@@ -144,11 +147,12 @@ def parse_cus(path, lua_cus, po):
     os.chdir(path)
     del_data(pjoin(path, lua_cus))  # 删去多余的不需要的数据
 
-    lua.execute('function IsNotConsole() return Ture end')  # IsNotConsole() 不是 PS4 或 XBONE 就返回 True  # for customize
-    lua.execute('function IsPS4() return False end')  # IsPS4() 不是 PS4 就返回False  # for customize
+    lua.execute('function IsNotConsole() return true end')  # IsNotConsole() 不是 PS4 或 XBONE 就返回 True  # for customize
+    lua.execute('function IsPS4() return false end')  # IsPS4() 不是 PS4 就返回False  # for customize
     lua.execute('ModManager = {}')  # for startlocations
     lua.require('class')  # for util
     lua.require('util')  # for startlocations
+    lua.require('constants')  # 新年活动相关
 
     dict_po = parse_po(pjoin(path, po))
     options_list = ['WORLDGEN_GROUP', 'WORLDSETTINGS_GROUP']  # 所需数据列表
@@ -159,9 +163,7 @@ def parse_cus(path, lua_cus, po):
         if strings:
             pass
         lua.execute('STRINGS=python.eval("strings")')  # 为了翻译，也免去要先给 STRINGS 加引号之类的麻烦事
-        lua.execute('SPECIAL_EVENTS=STRINGS.UI.SANDBOXMENU')  # 懒猪klei，这里为什么不用全的
-
-        lua.require(lua_customize)  # 终于开始干正事了。导入的 tasksets 会自动打印一些东西出来
+        lua.require(lua_cus)  # 终于开始干正事了。导入的 tasksets 会自动打印一些东西出来
         options[lang] = {'setting': {i: table_dict(lua.globals()[i]) for i in options_list if i in lua.globals()},
                          'translate': tran}
         for package in list(lua.globals().package.loaded):  # 清除加载的 customize 模块，避免下次 require 时不加载
@@ -174,6 +176,8 @@ def parse_cus(path, lua_cus, po):
 
 def parse_option(group_dict):
     result = {}
+    img_info = {}
+    img_name = ''
     for lang, opt in group_dict.items():
         setting, translate = opt.values()
         forest, cave = {}, {}
@@ -183,9 +187,29 @@ def parse_option(group_dict):
             cave[group] = {}
             for com, com_value in group_value.items():
                 desc_val = com_value.get('desc')
+                if desc_val:
+                    desc_val = {i['data']: i['text'] for i in desc_val}
                 for world, world_value in result.get(lang).items():
+                    img_name = com_value.get('atlas').replace('images/', '').replace('.xml', '')
+                    if img_name not in img_info:
+                        with open(pjoin(path_base, com_value.get('atlas')), 'r', encoding='utf-8') as f:
+                            data = f.read()
+                        image_filename = search('filename="([^"]+)"', data).group(1)
+                        with open(pjoin(path_base, 'images', image_filename), 'rb') as f:
+                            img_data = f.read(96)
+                        image_width, image_height = int(img_data[88:90].hex(), 16), int(img_data[90:92].hex(), 16)
+                        img_width_start, img_width_end = search(r'u1="([^"]+?)"\s*?u2="([^"]+?)"', data).groups()
+                        img_item_width = int(image_width / round(1 / (float(img_width_end) - float(img_width_start))))
+                        img_pos = {i[0]: {'x': float(i[1]), 'y': 1 - float(i[2])} for i in
+                                   findall(r'<Element\s+name="([^"]+?)"\s*u1="([^"]+?)"[\d\D]*?v2="([^"]+?)"', data)}
+                        img_info[img_name] = {'img_items': img_pos, 'width': image_width, 'height': image_height,
+                                              'item_size': img_item_width}
                     world_value.get(group)[com] = {
-                        'order': int(com_value.get('order')), 'text': com_value.get('text'), 'desc': desc_val,
+                        'order': int(com_value.get('order')),
+                        'text': com_value.get('text'),
+                        'atlas': {'name': img_name, 'width': img_info[img_name]['width'],
+                                  'height': img_info[img_name]['height'], 'item_size': img_info[img_name]['item_size']},
+                        'desc': desc_val,
                         'items': {}}
                 for item, item_value in com_value.get('items').items():
                     tmp = []
@@ -195,19 +219,23 @@ def parse_option(group_dict):
                         tmp.append(('cave', result.get(lang).get('cave')))
                     print('这个有问题{}\n'.format(item_value) if not tmp else '', end='')
                     for world, world_value in tmp:
-                        world_value.get(group).get(com).get('items')[item] = {
+                        items = world_value.get(group).get(com).get('items')
+                        items[item] = {
                             'value': item_value.get('value'),
-                            'image': item_value.get('image'),
+                            'image': img_info.get(img_name).get('img_items').get(item_value.get('image')),
                             'text': translate.get('STRINGS').get('UI').get('CUSTOMIZATIONSCREEN').get(item.upper())}
                         if item_value.get('desc'):
-                            world_value.get(group).get(com).get('items').get(item)['desc'] = item_value.get('desc')
+                            item_desc = item_value.get('desc').get(world) if isinstance(item_value.get('desc'), dict) \
+                                else item_value.get('desc')
+                            item_desc = {i['data']: i['text'] for i in item_desc}
+                            items.get(item)['desc'] = item_desc
                 forest.get(group).pop(com) if not forest.get(group).get(com).get('items') else 0  # 删去空的不包含item项的组
                 cave.get(group).pop(com) if not cave.get(group).get(com).get('items') else 0  # 删去空的不包含item项的组
     return result
 
 
 lua = lupa.LuaRuntime()
-options_raw, misc = parse_cus(path_dir, lua_customize, po_chs)
+options_raw, misc = parse_cus(path_script, lua_customize, po_chs)
 # print(options_raw)
 settings = parse_option(options_raw)
 print(time.time() - start)
@@ -216,35 +244,3 @@ print(time.time() - start)
 if settings == 1:
     open('dst_world_setting.json', 'w').write(json.dumps(settings))
 
-eg = {
-    'zh': {
-        'forest': {
-            'worldgen_group': {
-                'monsters': {
-                    'order': 5,
-                    'text': '敌对生物以及刷新点',
-                    'desc': {  # 优先使用 item 自有的 desc
-                        'never': '无',
-                        'rare': '很少'
-                    },
-                    'items': {
-                        'spiders': {
-                            'value': 'default',
-                            'desc': {  # 可能有可能无，优先使用 item 自带的 desc
-                                'never': '无',
-                                'rare': '很少'
-                            },
-                            'image': 'spiderden.tex',
-                            'chs': '蜘蛛巢'
-
-                        },
-                        'houndmound': {}
-                    },
-                },
-                'animals': {}
-            },
-            'worldsettings_group': {}
-        },
-        'cave': {}
-    }
-}
