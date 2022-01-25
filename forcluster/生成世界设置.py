@@ -130,29 +130,32 @@ def split_key(dict_split, list_split, value):  # 以列表值为 keys 补全字�
     split_key(dict_split.get(list_split.pop(0)), list_split, value)
 
 
-def del_data(path_cus):  # 删去local、不必要的require 和不需要的内容
-    with open(path_cus + '.lua', 'r+') as f:
+def creat_newdata(path_bas, path_cus, new_cus):  # 删去local、不必要的require 和不需要的内容
+    with open(pjoin(path_bas, path_cus) + '.lua', 'r') as f:
         data = f.read()
-        if 'local MOD_WORLDSETTINGS_GROUP' in data:
-            data = data[:data.find('local MOD_WORLDSETTINGS_GROUP')]
-        f.seek(0)
-        f.truncate()
-        data = sub(r'local [^=]+?\n', '', data).replace('local ', '')
-        data = sub(r'require(?![^\n]+?(?=tasksets"|startlocations"))', '', data)
+    if 'local MOD_WORLDSETTINGS_GROUP' in data:
+        data = data[:data.find('local MOD_WORLDSETTINGS_GROUP')]
+    data = sub(r'local [^=]+?\n', '', data).replace('local ', '')
+    data = sub(r'require(?![^\n]+?(?=tasksets"|startlocations"))', '', data)
+    with open(pjoin(path_bas, new_cus) + '.lua', 'w+') as f:
         f.write(data)
 
 
 def parse_cus(path, lua_cus, po):
     cwd_now = os.getcwd()
     os.chdir(path)
-    del_data(pjoin(path, lua_cus))  # 删去多余的不需要的数据
+    new_cus = lua_cus + '_tmp'
+    creat_newdata(path, lua_cus, new_cus)  # 删去多余的不需要的数据并另存
 
     lua.execute('function IsNotConsole() return true end')  # IsNotConsole() 不是 PS4 或 XBONE 就返回 True  # for customize
+    lua.execute('function IsConsole() return false end')  # IsConsole() 是 PS4 或 XBONE 就返回 True
     lua.execute('function IsPS4() return false end')  # IsPS4() 不是 PS4 就返回False  # for customize
     lua.execute('ModManager = {}')  # for startlocations
     lua.require('class')  # for util
     lua.require('util')  # for startlocations
     lua.require('constants')  # 新年活动相关
+
+    lua.require("strict")
 
     dict_po = parse_po(pjoin(path, po))
     options_list = ['WORLDGEN_GROUP', 'WORLDSETTINGS_GROUP']  # 所需数据列表
@@ -163,7 +166,7 @@ def parse_cus(path, lua_cus, po):
         if strings:
             pass
         lua.execute('STRINGS=python.eval("strings")')  # 为了翻译，也免去要先给 STRINGS 加引号之类的麻烦事
-        lua.require(lua_cus)  # 终于开始干正事了。导入的 tasksets 会自动打印一些东西出来
+        lua.require(new_cus)  # 终于开始干正事了。导入的 tasksets 会自动打印一些东西出来
         options[lang] = {'setting': {i: table_dict(lua.globals()[i]) for i in options_list if i in lua.globals()},
                          'translate': tran}
         for package in list(lua.globals().package.loaded):  # 清除加载的 customize 模块，避免下次 require 时不加载
@@ -180,11 +183,10 @@ def parse_option(group_dict):
     img_name = ''
     for lang, opt in group_dict.items():
         setting, translate = opt.values()
-        forest, cave = {}, {}
-        result[lang] = {'forest': forest, 'cave': cave}
+        result[lang] = {'forest': {}, 'cave': {}}
         for group, group_value in setting.items():
-            forest[group] = {}
-            cave[group] = {}
+            for world_type in result[lang].values():
+                world_type[group] = {}
             for com, com_value in group_value.items():
                 desc_val = com_value.get('desc')
                 if desc_val:
@@ -200,7 +202,9 @@ def parse_option(group_dict):
                         image_width, image_height = int(img_data[88:90].hex(), 16), int(img_data[90:92].hex(), 16)
                         img_width_start, img_width_end = search(r'u1="([^"]+?)"\s*?u2="([^"]+?)"', data).groups()
                         img_item_width = int(image_width / round(1 / (float(img_width_end) - float(img_width_start))))
-                        img_pos = {i[0]: {'x': float(i[1]), 'y': 1 - float(i[2])} for i in
+                        item_num_w, item_num_h = image_width / img_item_width, image_height / img_item_width
+                        img_pos = {i[0]: {'x': round(float(i[1]) * item_num_w) / item_num_w,
+                                          'y': 1 - round(float(i[2]) * item_num_h) / item_num_h} for i in
                                    findall(r'<Element\s+name="([^"]+?)"\s*u1="([^"]+?)"[\d\D]*?v2="([^"]+?)"', data)}
                         img_info[img_name] = {'img_items': img_pos, 'width': image_width, 'height': image_height,
                                               'item_size': img_item_width}
@@ -229,8 +233,10 @@ def parse_option(group_dict):
                                 else item_value.get('desc')
                             item_desc = {i['data']: i['text'] for i in item_desc}
                             items.get(item)['desc'] = item_desc
-                forest.get(group).pop(com) if not forest.get(group).get(com).get('items') else 0  # 删去空的不包含item项的组
-                cave.get(group).pop(com) if not cave.get(group).get(com).get('items') else 0  # 删去空的不包含item项的组
+                for groups in result[lang].values():
+                    groups[group].pop(com) if not groups[group].get(com).get('items') else 0  # 删去空的不包含item项的组
+                # forest.get(group).pop(com) if not forest.get(group).get(com).get('items') else 0
+                # cave.get(group).pop(com) if not cave.get(group).get(com).get('items') else 0  # 删去空的不包含item项的组
     return result
 
 
@@ -243,4 +249,3 @@ print(time.time() - start)
 
 if settings == 1:
     open('dst_world_setting.json', 'w').write(json.dumps(settings))
-
