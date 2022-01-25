@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
-# 21.05.10 by suke
-# version 22.01.14
+# 21.05.10 by sukes
+# version 22.01.25
 
 """
 在本文件路径下运行开启指令。括号内内容，不带括号(screen -L -Logfile foralive.log -dmS foralive python3 foralive.py)
@@ -408,9 +408,10 @@ def getmodinfo(id_):
 
         return mod_name
     except Exception as e:
-        if 'HTTP Error 503: Service Unavailable' in e:
+        print(now(), '获取mod名出错，原因：', end='')
+        if 'HTTP Error 503: Service Unavailable' in e.__str__():
             e = 'steam api 服务器繁忙'
-        print(now(), '获取mod名出错，原因：{}'.format(e))
+        print(e)
         return {}
 
 
@@ -752,11 +753,11 @@ def start_world(world_names):  # str, iter
             cmd_start += ['-ugc_directory', ugc_dir.get(world_name)]
         send_cmd(cmd_start, 120, path_dst_bin)
     sleep(1)
-    sucess, fail = [], []
+    success, fail = [], []
     for world_name in world_names:
-        sucess.append(world_name) if running(world_name) else fail.append(world_name)
-    if sucess:
-        print(now('blank'), '已经开启世界 {0}'.format('、'.join(sucess)))
+        success.append(world_name) if running(world_name) else fail.append(world_name)
+    if success:
+        print(now('blank'), '已经开启世界 {0}'.format('、'.join(success)))
     if fail:
         print(now('blank'), '未能开启世界 {0}'.format('、'.join(fail)))
 
@@ -769,22 +770,29 @@ def stop_world(world_names):  # str, iter
         cmd_stop = ['screen', '-S', screen_dir.get(world_name), '-X', 'stuff', 'c_shutdown(true)\n']
         send_cmd(cmd_stop)
     sleep(9)
-    world_num = 0
+    success, fail = [], []
     for world_name in world_names:
-        world_num += 1
         if running(world_name):
+            fail.append(world_name)
+            if fail.count(world_name) > 2:
+                continue
+            sleep(1)
+            world_names.append(world_name)
             cmd_pid = ['ps', '-ef']
             cmd_kill = ['xargs', 'kill', '-9']
-            print(now('blank'), '未能关闭世界{0}，即将强行停止。'.format(world_name))
+            print(now('blank'), '未能关闭世界{0}，尝试强行停止。'.format(world_name))
             screen_name = ' {} '.format(screen_dir.get(world_name))  # 前后加空格以确保不会误判。比如cave和cave1
             pid_list = [i.split()[1] for i in send_cmd(cmd_pid)[0].split('\n') if screen_name in i and 'dontstarv' in i]
             send_cmd(cmd_kill, inputs='\n'.join(pid_list))
         else:
-            if world_num == 1:
-                text = f'{now("blank")} 已经关闭世界 {world_name}'
-            else:
-                text = f'、{world_name}'
-            print(text)
+            success.append(world_name)
+            while world_name in fail:
+                fail.remove(world_name)
+
+    if success:
+        print(now('blank'), '已经关闭世界 {0}'.format('、'.join(success)))
+    if fail:
+        print(now('blank'), '未能关闭世界 {0}'.format('、'.join(list(set(fail)))))
 
 
 def send_cmd(cmd, timeout=120, cwd=None, inputs=None):  # cmd: list or tuple, inputs: str, cwd: path, timeout: int
