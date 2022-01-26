@@ -1,8 +1,11 @@
 ##!/usr/bin/python3
 # -*- coding: utf-8 -*-
-# 调用 kle 的工具获取 worldgenoverride 模板，并不好用因为环境限制加没有翻译。
+# 调用 kle 的工具获取 worldgenoverride 模板，并不好用因为运行环境限制加没有翻译
+# 或者在游戏内控制台输入 require 'tools/generate_worldgenoverride'，文件会保存在饥荒程序文件夹
 # 引用顺序不要修改
 import os
+from functools import reduce
+
 import lupa
 t = lupa.LuaRuntime()
 path = r"C:\Program Files (x86)\Steam\steamapps\common\Don't Starve Together\data\databundles\scripts"
@@ -25,3 +28,4 @@ t.require("custompresets")  # for levels
 t.execute('CustomPresetManager = CustomPresets()')  # for levels
 
 t.require("tools/generate_worldgenoverride")
+
