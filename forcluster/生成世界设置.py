@@ -192,7 +192,7 @@ def parse_option(group_dict):
                 if desc_val:
                     desc_val = {i['data']: i['text'] for i in desc_val}
                 for world, world_value in result.get(lang).items():
-                    img_name = com_value.get('atlas').replace('images/', '').replace('.xml', '')
+                    img_name = com_value.get('atlas', '').replace('images/', '').replace('.xml', '')
                     if img_name not in img_info:
                         with open(pjoin(path_base, com_value.get('atlas')), 'r', encoding='utf-8') as f:
                             data = f.read()
@@ -209,34 +209,47 @@ def parse_option(group_dict):
                         img_info[img_name] = {'img_items': img_pos, 'width': image_width, 'height': image_height,
                                               'item_size': img_item_width}
                     world_value.get(group)[com] = {
-                        'order': int(com_value.get('order')),
-                        'text': com_value.get('text'),
+                        'order': int(com_value.get('order', 0)),
+                        'text': com_value.get('text', ''),
                         'atlas': {'name': img_name, 'width': img_info[img_name]['width'],
                                   'height': img_info[img_name]['height'], 'item_size': img_info[img_name]['item_size']},
                         'desc': desc_val,
                         'items': {}}
-                for item, item_value in com_value.get('items').items():
+                for item, item_value in com_value['items'].items():
                     tmp = []
-                    if 'forest' in item_value.get('world', '') or not item_value.get('world', ''):
-                        tmp.append(('forest', result.get(lang).get('forest')))
+                    if 'forest' in item_value.get('world', '') or not item_value.get('world'):
+                        tmp.append(('forest', result[lang]['forest']))
                     if 'cave' in item_value.get('world', ''):
-                        tmp.append(('cave', result.get(lang).get('cave')))
+                        tmp.append(('cave', result[lang]['cave']))
                     print('这个有问题{}\n'.format(item_value) if not tmp else '', end='')
                     for world, world_value in tmp:
-                        items = world_value.get(group).get(com).get('items')
+                        items = world_value[group][com]['items']
                         items[item] = {
                             'value': item_value.get('value'),
-                            'image': img_info.get(img_name).get('img_items').get(item_value.get('image')),
-                            'text': translate.get('STRINGS').get('UI').get('CUSTOMIZATIONSCREEN').get(item.upper())}
+                            'image': img_info[img_name]['img_items'][item_value['image']],
+                            'text': translate['STRINGS']['UI']['CUSTOMIZATIONSCREEN'][item.upper()]}
                         if item_value.get('desc'):
-                            item_desc = item_value.get('desc').get(world) if isinstance(item_value.get('desc'), dict) \
-                                else item_value.get('desc')
+                            item_desc = item_value['desc'][world] if isinstance(item_value['desc'], dict) \
+                                else item_value['desc']
                             item_desc = {i['data']: i['text'] for i in item_desc}
-                            items.get(item)['desc'] = item_desc
-                for groups in result[lang].values():
-                    groups[group].pop(com) if not groups[group].get(com).get('items') else 0  # 删去空的不包含item项的组
-                # forest.get(group).pop(com) if not forest.get(group).get(com).get('items') else 0
-                # cave.get(group).pop(com) if not cave.get(group).get(com).get('items') else 0  # 删去空的不包含item项的组
+                            items[item]['desc'] = item_desc
+                        if item_value.get('order'):
+                            items[item]['order'] = item_value['order']
+
+    # 清理空的 items 项。并打印不同世界的项目数。
+    tip_times = 0
+    for lang_value in result.values():
+        for world_name, world_value in lang_value.items():
+            setting_num = 0
+            for groups_value in world_value.values():
+                for group_name, group_value in list(groups_value.items())[:]:
+                    setting_num += len(group_value['items'])
+                    if not group_value['items']:
+                        del groups_value[group_name]
+            if tip_times < len(lang_value):
+                print(f'{world_name} 拥有 {setting_num} 个可设置项')
+                tip_times += 1
+
     return result
 
 
