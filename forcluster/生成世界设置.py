@@ -225,16 +225,21 @@ def parse_option(group_dict):
                     for world, world_value in tmp:
                         items = world_value[group][com]['items']
                         items[item] = {
-                            'value': item_value.get('value'),
                             'image': img_info[img_name]['img_items'][item_value['image']],
                             'text': translate['STRINGS']['UI']['CUSTOMIZATIONSCREEN'][item.upper()]}
                         if item_value.get('desc'):
-                            item_desc = item_value['desc'][world] if isinstance(item_value['desc'], dict) \
-                                else item_value['desc']
+                            item_desc = item_value['desc']
+                            item_desc = item_desc.get(world) if isinstance(item_desc, dict) else item_desc
                             item_desc = {i['data']: i['text'] for i in item_desc}
                             items[item]['desc'] = item_desc
+
+                        # 为带有排序优先属性 order 的项目添加 order
                         if item_value.get('order'):
                             items[item]['order'] = item_value['order']
+                        # 修正地上地下使用不同 desc 时，共用的 value 不在某个的 desc 内的情况
+                        tmp_desc = items[item].get('desc') or world_value[group][com]['desc']
+                        tmp_value = item_value.get('value')
+                        items[item]['value'] = list(tmp_desc)[0] if tmp_value in tmp_desc else item_value.get('value')
 
     # 清理空的 items 项。并打印不同世界的项目数。
     tip_times = 0
