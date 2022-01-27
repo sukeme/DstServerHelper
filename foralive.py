@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
-# 21.05.10 by sukes
-# version 22.01.25
+# 21.05.10 by suke
+# version 22.01.28
 
 """
 在本文件路径下运行开启指令。括号内内容，不带括号(screen -L -Logfile foralive.log -dmS foralive python3 foralive.py)
@@ -234,7 +234,7 @@ def endless(times=0, text=''):
 
 
 def update(tick=0, tick2=0):
-    global interval_update, path_cluster, path_dst, path_dst_bin, path_steamcmd, path_steam
+    global interval_update, path_cluster, path_dst, path_dst_bin, path_steamcmd, path_steam, world_list, world_status
     # cmd_new_buildid = './steamcmd.sh +login anonymous +app_info_update 1 +app_info_print 343050 +quit | sed "1,/branches/d" | sed "1,/public/d" | grep -m 1 buildid | tr -cd [:digit:]'
     cmd_build = ['./steamcmd.sh', '+login', 'anonymous', '+app_info_update', '1', '+app_info_print', '343050', '+quit']
     # path_appinfo = pjoin(path_steam, 'appcache/appinfo.vdf')
@@ -306,16 +306,24 @@ def update(tick=0, tick2=0):
             print(now('blank'), '尝试更新失败{}次'.format(times + 1))
         else:
             print(now('blank'), '多次尝试更新失败')
-            print(now('blank'), 'out: ' + out)
-            print(now('blank'), 'err: ' + err)
+            print(now('blank'), 'out:', out)
+            print(now('blank'), 'err:', err)
             return
 
         print(now('blank'), '更新完毕')
         send_messages('update')  # 发送公告提示重启
         running_list = [i[0] for i in zip(world_list, running(world_list)) if i[1]]  # 记录正在运行的世界，最后开启
+        stopped_list = [i for i in world_list if i not in running_list]
+        test_start = []
+        for world in stopped_list:
+            if world_status.get(world, {}).get('status', [-1])[0] not in [-1, 0]:  # -1 代表不存在，0 代表正常关闭
+                test_start.append(world)
+                world_status[world]['is_run'][0] = 0
+                world_status[world]['status'][0] = 0
+
         stop_world(running_list)
         write_mods_setup()
-        start_world(running_list)
+        start_world(running_list + test_start)
     except Exception as e:
         print(now('blank'), 'update函数出错')
         print(now('blank'), e)
@@ -607,10 +615,8 @@ def update_mod(tick=0, tick2=0, mode=0):
         Timer(t, update_mod, [tick, tick2, mode]).start()  # 间隔t秒后再次执行该函数。即将到通知时间，则准备输出运行次数
 
 
-def auto_restart(all_status=None):
-    if all_status is None:
-        all_status = {}
-    global interval_restart, path_cluster, rollback
+def auto_restart():
+    global interval_restart, path_cluster, rollback, world_list, world_status
     path_clu = dirname(path_cluster)
     cluster = basename(path_cluster)
     text_right1 = b']: c_shutdown'
@@ -620,7 +626,7 @@ def auto_restart(all_status=None):
     log_name = 'server_log.txt'
     t = max(interval_restart * 60, 30)
     try:
-        for world in screen_dir:
+        for world in world_list:
             path_tmp = pjoin(path_clu, world)
             tar_name = '{}_bak.tar.gz'.format(world)
             text_restart = '{}进程已经重新开启，开始守护'.format(world)
@@ -632,9 +638,8 @@ def auto_restart(all_status=None):
             path_tar = pjoin(path_clu, tar_name)
             is_run_times = max(120 // t + 1, 2)  # 按默认2分钟一次，连续检测到2次为标准。防止检测时间过短导致轻易达到次数从而导致误判
 
-            is_run = all_status.get(world, {}).get('is_run', [0])  # 连续多次检测到服务器运行，开启守护。防止用户手动尝试启动时误判
-            status = all_status.get(world, {}).get('status', [0])  # 记录状态码
-            all_status[world] = {'is_run': is_run, 'status': status}
+            is_run = world_status.setdefault(world, {}).setdefault('is_run', [0])  # 连续多次检测到服务器运行，开启守护。防止用户手动尝试启动时误判
+            status = world_status.setdefault(world, {}).setdefault('status', [0])  # 记录状态码
             if running(world):
                 if status[0] != 0:
                     is_run[0] += 1
@@ -691,7 +696,7 @@ def auto_restart(all_status=None):
         print(now('blank'), 'auto_restart函数出错')
         print(now('blank'), e)
     finally:
-        Timer(t, auto_restart, [all_status]).start()  # 间隔t秒后再次执行该函数
+        Timer(t, auto_restart).start()  # 间隔t秒后再次执行该函数
 
 
 def send_messages(mode, extra='', total_time=0):
@@ -934,6 +939,7 @@ if __name__ == "__main__":
     path = abspath(getsourcefile(lambda: 0))  # 获取本文件所在目录绝对路径
     show_version()  # 打印版本
     gc_collect()  # 内存回收
+    world_status = {}  # 初始化世界状态
     path_steam, path_steamcmd, path_dst, path_cluster = get_paths()  # 自动检测所需路径
     path_dst_bin = pjoin(path_dst, 'bin64')
 
