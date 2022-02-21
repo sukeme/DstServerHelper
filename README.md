@@ -73,3 +73,6 @@ screen -X -S foralive quit
 ### 待做
 * 整理饥荒相关准备，为网页提供接口
 * 制作网页实现功能
+
+mod 界面还没想好怎么布局，自定义选项多的话实现起来有点麻烦
+DEMO: https://dst.suke.fun/
