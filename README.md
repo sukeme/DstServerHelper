@@ -70,9 +70,6 @@ screen -X -S foralive quit
 * 通过mod的modinfo文件自动解析**mod设置**。如果mod有中文支持，则选择中文
 * 黑/白/管理 名单、cluster.ini、server.ini 等文件的设置项
 * 饥荒表情的提取
-### 待做
-* 整理饥荒相关准备，为网页提供接口
-* 制作网页实现功能
-
-mod 界面还没想好怎么布局，自定义选项多的话实现起来有点麻烦
-DEMO: https://dst.suke.fun/
+### 完成
+功能部分基本写好了，欢迎测试
+地址: https://dst.suke.fun/
