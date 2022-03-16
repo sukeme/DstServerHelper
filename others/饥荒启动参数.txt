@@ -148,11 +148,10 @@ klei发布的启动脚本  https://accounts.klei.com/assets/gamesetup/linux/run_
     黑白管理员名单会在该目录下寻找，<persistent_storage_root>/<conf_dir>/<ownerdir>/<client_save>
     其他不清楚
 -sigprefix DST_Master
--backup_log_period 0
 
 
 SERVER_LEVEL_LOCATIONS = {"cave", "forest"}
-    反转主机创建世界时森林和洞穴的顺序，可以将洞穴作为主世界洞穴
+    反转主机创建世界时森林和洞穴的顺序，可以将洞穴作为主世界
 
 
 加入玩家创建的房间  R: 后接 steamid 项的内容
