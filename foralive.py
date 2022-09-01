@@ -86,7 +86,7 @@ def meta_info(path_meta):
     segs = meta_dict.get('clock', {}).get('segs', {})  # 阶段分段信息
 
     season = {'spring': '春', 'summer': '夏', 'autumn': '秋', 'winter': '冬'}.get(season, '')
-    season = '{0} {1}/{2}'.format(season, passed_season + 1, passed_season + remaining_season)
+    season = f'{season} {passed_season + 1}/{passed_season + remaining_season}'
     segs_list = [segs.get(i, 0) * 30 for i in ('day', 'dusk', 'night')]
     passed_time = sum(segs_list[:{'day': 0, 'dusk': 1, 'night': 2}.get(phase, 0) + 1]) - remaining_time  # 当天已过时间
     info['day'] = day
@@ -114,7 +114,7 @@ def survival_days(world=None):
             newest_path = meta_file[0]
             newest_time = meta_file[1]
     except Exception as e:
-        print(now(), 'survival_days函数出错：{}'.format(e))
+        print(now(), f'survival_days函数出错：{e}')
     finally:
         return (*day_info.values(), newest_time) if mode else newest_path
 
@@ -160,7 +160,7 @@ def reset():
         print(now('blank'), e)
     finally:
         t = max(t, 60)
-        print(now('blank'), '下次检测时间：{}'.format(now(time() + t)))
+        print(now('blank'), f'下次检测时间：{now(time() + t)}')
         Timer(t, reset).start()  # 间隔t秒后再次执行该函数
 
 
@@ -189,7 +189,7 @@ def endless(times=0, text=''):
         with open(path_clu_ini, 'r', encoding='utf-8') as f:
             data = f.read()
         if search(r'(\n\s*game_mode\s*=\s*)endless', data):
-            print(now('blank'), '已经是无尽 天数：{0} 季节：{1}'.format(day, season))
+            print(now('blank'), f'已经是无尽 天数：{day} 季节：{season}')
             t = change_time + reset_time - (time() - act_time)  # 已经是无尽，下次检测时间就是预计重置时间延后change_time
             return
 
@@ -198,7 +198,7 @@ def endless(times=0, text=''):
             t = day_time * day_to_change_real - day_time * (day - 1) - (time() - meta_time) - passed_time + 5
             t = t if t > 0 else max(day_time * (day_to_change_real - day), day_time)  # 除了前一天下线，保证指定天数后5s转模式
 
-            text_temp = '不转为无尽 天数：{0} 季节：{1}'.format(day, season)
+            text_temp = f'不转为无尽 天数：{day} 季节：{season}'
             if text_temp == text:
                 times += 1
                 if times == 1:
@@ -225,11 +225,11 @@ def endless(times=0, text=''):
         print(now('blank'), '已更改为无尽模式')
         t = change_time + reset_time - (time() - active_time())  # 已经是无尽，下次检测时间就是预计重置时间延后change_time
     except Exception as e:
-        print(now('blank'), 'endless函数出错:：{}'.format(e))
+        print(now('blank'), f'endless函数出错:：{e}')
     finally:
         t = max(t, 5)
         if times < 2:
-            print(now('blank'), '下次检测时间：{}'.format(now(time() + t)))
+            print(now('blank'), f'下次检测时间：{now(time() + t)}')
         Timer(t, endless, [times, text]).start()  # 间隔t秒后再次执行该函数
 
 
@@ -241,7 +241,7 @@ def update(tick=0, tick2=0):
     path_local_acf1 = pjoin(path_dst, 'steamapps', 'appmanifest_343050.acf')  # 自定义饥荒文件夹的acf位置
     path_local_acf2 = pjoin(path_steam, 'steamapps', 'appmanifest_343050.acf')  # 默认安装的acf位置
     text_normal = '过去一天中检测更新96次，无可用更新'
-    text_update = '过去一天中检测更新96次，更新{}次'.format(tick2)
+    text_update = f'过去一天中检测更新96次，更新{tick2}次'
     cmd_update = ['./steamcmd.sh', '+login', 'anonymous', '+force_install_dir', path_dst, '+app_update', '343050',
                   'validate', '+quit']
     time_start = time()
@@ -267,7 +267,7 @@ def update(tick=0, tick2=0):
                              if '): ignored.' not in line)  # 去除被忽略的错误
             out1 = '\n'.join(line for line in out1.split('\n')
                              if 'Warning: ' not in line)  # 去除警告
-            print(now(), '检测最新buildid失败，耗时：{0}，原因：{1}'.format(time() - test_start, err1))
+            print(now(), f'检测最新buildid失败，耗时：{time() - test_start}，原因：{err1}')
             print(now(), out1) if out1 else 0
             return
         newbuildid = int(buildids_new[0])
@@ -284,7 +284,7 @@ def update(tick=0, tick2=0):
             data_acf = f.read()
         buildid_old = search(r'(?<=\t"buildid"\t\t")\d+', data_acf)
         if not buildid_old:
-            print(now(), '检测本地buildid失败，原因：未在文件{}中检索到buildid。请重启饥荒服务器再次尝试'.format(path_local_acf))
+            print(now(), f'检测本地buildid失败，原因：未在文件{path_local_acf}中检索到buildid。请重启饥荒服务器再次尝试')
             return
         oldbuildid = int(buildid_old.group())
 
@@ -303,7 +303,7 @@ def update(tick=0, tick2=0):
             out, err = send_cmd(cmd_update, 300, cwd=path_steamcmd)
             if 'Success!' in out:
                 break
-            print(now('blank'), '尝试更新失败{}次'.format(times + 1))
+            print(now('blank'), f'尝试更新失败{times + 1}次')
         else:
             print(now('blank'), '多次尝试更新失败')
             print(now('blank'), 'out:', out)
@@ -340,7 +340,7 @@ def chatlog():
         path_bakdir = pjoin(dirname(path), 'chatlog')
         time_for_path = now()
         month = time_for_path[:7]
-        bakfile_raw = '{}_{{}}.txt'.format(time_for_path[8:10])  # 18_0.txt  {day}_{count}.txt
+        bakfile_raw = f'{time_for_path[8:10]}_{{}}.txt'  # 18_0.txt  {day}_{count}.txt
         path_bakdir_month = pjoin(path_bakdir, month)
         path_bakfile, path_bakfile_next = '', ''
 
@@ -400,7 +400,7 @@ def getmodinfo(id_):
             data['itemcount'] = str(len(id_))
             num = 0
             for modid in id_:
-                data['publishedfileids[{}]'.format(num)] = str(modid)
+                data[f'publishedfileids[{num}]'] = str(modid)
                 num += 1
         else:
             return {}
@@ -475,7 +475,7 @@ def get_modlist(mode=0):
                     mod_lack_single.get(world).append(mod_id)
             if mod_lack_list:
                 mod_lack_list = list(set(mod_lack_list))
-                print(now('blank'), 'mod {} 尚未下载，已作为待更新项加入更新列表'.format('、'.join(mod_lack_list)))
+                print(now('blank'), f"mod {'、'.join(mod_lack_list)} 尚未下载，已作为待更新项加入更新列表")
 
         return mod_list, mod_single, mod_lack_single
     except Exception as e:
@@ -489,7 +489,7 @@ def write_mods_setup():
         global path_dst, path_cluster
         path_mods_setup = pjoin(path_dst, 'mods/dedicated_server_mods_setup.lua')
         mods_list = get_modlist(1)[0]
-        mods_setup_text = '\n'.join(['ServerModSetup("{}")'.format(i) for i in mods_list])
+        mods_setup_text = '\n'.join([f'ServerModSetup("{i}")' for i in mods_list])
         if exists(path_mods_setup):
             with open(path_mods_setup, 'w+', encoding='utf-8') as f:
                 f.write(mods_setup_text)
@@ -502,8 +502,8 @@ def update_mod(tick=0, tick2=0, mode=0):
     global path_cluster, path_dst, path_dst_bin, world_list, ugc_dir
     dir_clu = basename(path_cluster)
     path_ugc_clu = pjoin(path_dst, 'ugc_mods', basename(path_cluster))
-    text_normal = '今日检测mod更新{}次，无可用更新'.format(tick)
-    text_update = '今日检测mod更新{0}次，更新{1}次'.format(tick, tick2)
+    text_normal = f'今日检测mod更新{tick}次，无可用更新'
+    text_update = f'今日检测mod更新{tick}次，更新{tick2}次'
     acf_time = [0]
     need_update_dict = {}
     try:
@@ -522,7 +522,7 @@ def update_mod(tick=0, tick2=0, mode=0):
                 acf_time.append(stat(path_acf).st_mtime)
                 need_update_dict[world] = parse_modacf(path_acf)
             else:
-                print(now('blank'), '未找到{}世界mod信息'.format(world))
+                print(now('blank'), f'未找到{world}世界mod信息')
 
         for world, world_val in need_update_dict.items():  # 删去没有开启的mod
             mod_single_world = mod_single.get(world, [])
@@ -585,17 +585,17 @@ def update_mod(tick=0, tick2=0, mode=0):
                         name_success, name_fail = getmodinfo(update_success), getmodinfo(update_fail)
                         name_success_str = '、'.join([name_success.get(i, '') or i for i in update_success])
                         name_fail_str = '、'.join([name_fail.get(i, '') or i for i in update_fail])
-                        print(now('blank'), '世界{0}更新mod {1} 成功'.format(world, name_success_str))
-                        print(now('blank'), '世界{0}更新mod {1} 失败'.format(world, name_fail_str))
+                        print(now('blank'), f'世界{world}更新mod {name_success_str} 成功')
+                        print(now('blank'), f'世界{world}更新mod {name_fail_str} 失败')
                         break
                 else:
-                    print(now('blank'), '{0}更新mod失败{1}次'.format(world, times))
+                    print(now('blank'), f'{world}更新mod失败{times}次')
                     if times > 5:
-                        print(now('blank'), '{}更新mod失败'.format(world))
-                        print(now('blank'), 'out: {}'.format(out))
-                        print(now('blank'), 'err: {}'.format(err))
+                        print(now('blank'), f'{world}更新mod失败')
+                        print(now('blank'), f'out: {out}')
+                        print(now('blank'), f'err: {err}')
                         break
-        print('{:>20}mod {} 更新完成。开始重启服务器'.format('', need_update_name_str))
+        print(f"{'':>20}mod {need_update_name_str} 更新完成。开始重启服务器")
 
         send_messages('update_mod', need_update_name_str)  # 发送公告提示重启
         running_list = [i[0] for i in zip(world_list, running(world_list)) if i[1]]  # 记录正在运行的世界，最后开启
@@ -628,10 +628,10 @@ def auto_restart():
     try:
         for world in world_list:
             path_tmp = pjoin(path_clu, world)
-            tar_name = '{}_bak.tar.gz'.format(world)
-            text_restart = '{}进程已经重新开启，开始守护'.format(world)
-            text_restarted = '{}进程曾经重新开启，开始守护'.format(world)
-            text_sucess = '{}进程已在崩溃后重新启动'.format(world)
+            tar_name = f'{world}_bak.tar.gz'
+            text_restart = f'{world}进程已经重新开启，开始守护'
+            text_restarted = f'{world}进程曾经重新开启，开始守护'
+            text_sucess = f'{world}进程已在崩溃后重新启动'
             cmd_tar = ['tar', '-czf', tar_name, cluster]
             cmd_untar = ['tar', '-xzf', tar_name, '-C', path_tmp]
             path_log = pjoin(path_cluster, world, log_name)
@@ -667,7 +667,7 @@ def auto_restart():
             is_run[0] = 0
             if status[0] == 0:
                 status[0] = 1
-                print(now(), '{0}进程因未知原因不存在，尝试启动。正在备份当前存档:{1}'.format(world, path_tar))
+                print(now(), f'{world}进程因未知原因不存在，尝试启动。正在备份当前存档:{path_tar}')
                 send_cmd(cmd_tar, cwd=path_clu)  # 备份存档
                 if not exists(path_tar):
                     status[0] = 9999
@@ -675,7 +675,7 @@ def auto_restart():
                 start_world(world) if not running(world) else 0
             elif status[0] <= rollback:
                 status[0] += 1
-                print(now(), '{0}进程启动失败，第{1}次尝试回档再次启动。'.format(world, status[0] - 1))
+                print(now(), f'{world}进程启动失败，第{status[0] - 1}次尝试回档再次启动。')
                 newest_path = survival_days(world)
                 if not newest_path:
                     status[0] = 9999
@@ -686,7 +686,7 @@ def auto_restart():
                 start_world(world) if not running(world) else 0
             elif status[0] == rollback + 1:
                 status[0] = 9999
-                print(now(), '{}进程启动失败，恢复操作前存档，暂停守护'.format(world))
+                print(now(), f'{world}进程启动失败，恢复操作前存档，暂停守护')
                 mkdir(path_tmp) if not exists(path_tmp) else 0
                 send_cmd(cmd_untar, cwd=path_clu)  # 释放旧存档
                 rmtree(pjoin(path_cluster, world))  # 删除当前存档
@@ -707,12 +707,12 @@ def send_messages(mode, extra='', total_time=0):
                 'update': {'text': '游戏更新完成', 'total_time': 60},
                 'update_mod': {'text': 'mod更新完成', 'total_time': 60}}
     message = messages.get(mode).get('text')
-    message = '{}\\\\n'.format(message) if not extra else '{0}\\\\n{1}\\\\n'.format(message, extra)  # 神奇的转义
+    message = f'{message}\\\\n' if not extra else f'{message}\\\\n{extra}\\\\n'  # 神奇的转义
     total_time = total_time or messages.get(mode).get('total_time')
     for interval in intervals:
-        msg = '{0}󰀅服务器将于{1}s后重启，预计重启后{2}s可重新连接󰀅'.format(message, int(all_interval_s), total_time)
+        msg = f'{message}󰀅服务器将于{int(all_interval_s)}s后重启，预计重启后{total_time}s可重新连接󰀅'
         cmd_message = ['screen', '-S', screen_name_master, '-X', 'stuff',
-                       'TheNet:SystemMessage("{}")\n'.format(msg)]
+                       f'TheNet:SystemMessage("{msg}")\n']
         send_cmd(cmd_message)
         all_interval_s -= interval
         sleep(interval)
@@ -749,7 +749,7 @@ def start_world(world_names):  # str, iter
     world_names = [world_names] if isinstance(world_names, str) else world_names
     for world_name in world_names:
         if running(world_name):
-            print(now('blank'), '{}世界已在运行，取消开启'.format(world_name))
+            print(now('blank'), f'{world_name}世界已在运行，取消开启')
             continue
         cmd_start = ['screen', '-dmS', screen_dir.get(world_name), './dontstarve_dedicated_server_nullrenderer_x64',
                      '-persistent_storage_root', persistent_storage_root,
@@ -762,9 +762,9 @@ def start_world(world_names):  # str, iter
     for world_name in world_names:
         success.append(world_name) if running(world_name) else fail.append(world_name)
     if success:
-        print(now('blank'), '已经开启世界 {0}'.format('、'.join(success)))
+        print(now('blank'), f"已经开启世界 {'、'.join(success)}")
     if fail:
-        print(now('blank'), '未能开启世界 {0}'.format('、'.join(fail)))
+        print(now('blank'), f"未能开启世界 {'、'.join(fail)}")
 
 
 def stop_world(world_names):  # str, iter
@@ -785,8 +785,8 @@ def stop_world(world_names):  # str, iter
             world_names.append(world_name)
             cmd_pid = ['ps', '-ef']
             cmd_kill = ['xargs', 'kill', '-9']
-            print(now('blank'), '未能关闭世界{0}，尝试强行停止。'.format(world_name))
-            screen_name = ' {} '.format(screen_dir.get(world_name))  # 前后加空格以确保不会误判。比如cave和cave1
+            print(now('blank'), f'未能关闭世界{world_name}，尝试强行停止。')
+            screen_name = f' {screen_dir.get(world_name)} '  # 前后加空格以确保不会误判。比如cave和cave1
             pid_list = [i.split()[1] for i in send_cmd(cmd_pid)[0].split('\n') if screen_name in i and 'dontstarv' in i]
             send_cmd(cmd_kill, inputs='\n'.join(pid_list))
         else:
@@ -795,9 +795,9 @@ def stop_world(world_names):  # str, iter
                 fail.remove(world_name)
 
     if success:
-        print(now('blank'), '已经关闭世界 {0}'.format('、'.join(success)))
+        print(now('blank'), f"已经关闭世界 {'、'.join(success)}")
     if fail:
-        print(now('blank'), '未能关闭世界 {0}'.format('、'.join(list(set(fail)))))
+        print(now('blank'), f"未能关闭世界 {'、'.join(list(set(fail)))}")
 
 
 def send_cmd(cmd, timeout=120, cwd=None, inputs=None):  # cmd: list or tuple, inputs: str, cwd: path, timeout: int
@@ -809,7 +809,7 @@ def send_cmd(cmd, timeout=120, cwd=None, inputs=None):  # cmd: list or tuple, in
         out, err = process.communicate(inputs, timeout=timeout)
     except TimeoutExpired:
         killpg(process.pid, SIGTERM)
-        print(now(), '执行shell命令超时：{}'.format(' '.join(cmd)))
+        print(now(), f"执行shell命令超时：{' '.join(cmd)}")
         out, err = process.communicate()
         err = err or '执行shell命令超时'
     return out, err
@@ -818,7 +818,7 @@ def send_cmd(cmd, timeout=120, cwd=None, inputs=None):  # cmd: list or tuple, in
 def now(mode=(0.0 or 0 or '' or None)):  # 无参数返回当前格式化时间 int/float参数返回对应格式化时间 其它参数返回等长空格
     if mode is None or isinstance(mode, (int, float)):
         return strftime("%Y.%m.%d %H:%M:%S", localtime(mode))
-    return '{:19}'.format('')
+    return f"{'':19}"
 
 
 def get_paths():  # 自动检测所需路径
@@ -872,15 +872,16 @@ def get_paths():  # 自动检测所需路径
 def select_path(path_list, file_name, verify, text, mode=0):
     if len(path_list) == 1:
         path_new = path_list[0]
-        print('{0}：{1}'.format(text, path_new))
+        print(f'{text}：{path_new}')
     else:
         if mode:
             path_list.sort(key=get_cluster_time, reverse=True)
         else:
             path_list.sort(key=lambda x: stat(pjoin(x, verify, file_name)).st_mtime, reverse=True)
         path_new = path_list[0]
-        print('检测到不止一个{0}，如下：\n{1}\n已根据最后修改时间选择第一项：{2}'.format(text, '\n'.join(path_list), path_new))
-        print('{}项检测到多个路径，请清理多余文件，或在自定义参数中指定路径'.format(text))
+        path_list_str = '\n'.join(path_list)
+        print(f'检测到不止一个{text}，如下：\n{path_list_str}\n已根据最后修改时间选择第一项：{path_new}')
+        print(f'{text}项检测到多个路径，请清理多余文件，或在自定义参数中指定路径')
     return path_new
 
 
