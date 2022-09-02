@@ -15,7 +15,7 @@
    * 默认 2 分钟
 5. 检测模组更新
    * 默认 15 分钟
-   * 默认状态不能检测未公开 mod，需要填写 Steam apikey 以通过更高权限的 api 检测
+   * 默认状态不能检测未公开 mod，需要填写 [Steam apikey](https://steamcommunity.com/dev/apikey) 以通过更高权限的 api 检测
 6. 游戏崩溃自启
    * 默认 2 分钟
 7. 多层世界支持
