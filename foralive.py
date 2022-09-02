@@ -384,65 +384,83 @@ def chatlog():
         Timer(t, chatlog).start()  # 间隔t秒后再次执行该函数
 
 
-def getmodinfo(id_):
-    try:
-        url = 'https://api.steampowered.com/ISteamRemoteStorage/GetPublishedFileDetails/v1/'
-        headers = {
-            'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) '
-                          'Chrome/89.0.4389.90 Safari/537.36 ',
-            "Content-Type": "application/x-www-form-urlencoded"
-        }
-        data = {}
-        if isinstance(id_, (str, int)):
-            data['itemcount'] = '1'
-            data['publishedfileids[0]'] = str(id_)
-        elif isinstance(id_, (list, tuple, set, dict)):
-            data['itemcount'] = str(len(id_))
-            num = 0
-            for modid in id_:
-                data[f'publishedfileids[{num}]'] = str(modid)
-                num += 1
-        else:
-            return {}
+def getmodinfo(mod_ids):
+    global steam_api_key
+    # https 偶尔会失败，http 失败几率比较低
+    url_nonkey = 'http://api.steampowered.com/ISteamRemoteStorage/GetPublishedFileDetails/v1/'
+    url_apikey = 'http://api.steampowered.com/IPublishedFileService/GetDetails/v1/'
+    data = {}
+    if isinstance(mod_ids, (str, int)):
+        data['itemcount'] = 1
+        data['publishedfileids[0]'] = mod_ids
+    elif isinstance(mod_ids, (list, tuple, set, dict)):
+        data['itemcount'] = num = len(mod_ids)
+        for modid in mod_ids:
+            data[f'publishedfileids[{(num := num - 1)}]'] = modid
+    else:
+        raise TypeError('传入参数类型应为以下之一：str, int, list, tuple, set, dict')
 
+    if steam_api_key:
+        data['key'] = steam_api_key
+        data['language'] = 6  # 0英文，6简中，7繁中
+        url = f'{url_apikey}?{urlencode(data)}'
+        req = Request(url=url)
+    else:
         data = urlencode(data).encode('utf-8')
-        req = Request(url=url, data=data, headers=headers)
-        response = urlopen(req, timeout=30)
-        result = response.read().decode('utf-8')
-        response.close()
+        req = Request(url=url_nonkey, data=data)
 
-        data = loads(result).get('response').get('publishedfiledetails')
-        mod_name = {i.get('publishedfileid'): i.get('title', '') for i in data}
+    res = urlopen(req, timeout=20)
+    response = res.read().decode('utf-8')
+    res.close()
 
-        return mod_name
-    except Exception as e:
-        print(now(), '获取mod名出错，原因：', end='')
-        if 'HTTP Error 503: Service Unavailable' in e.__str__():
-            e = 'steam api 服务器繁忙'
-        print(e)
-        return {}
+    results = loads(response).get('response').get('publishedfiledetails')
+    mods_info_success = {}
+    mods_info_fail = []
+    for result in results:
+        mod_id = result.get('publishedfileid')
+        state = result.get('result')
+        if state == 1:
+            mods_info_success[mod_id] = {
+                'mod_name': result.get('title'),
+                'updated_time': result.get('time_updated'),
+            }
+        else:
+            mods_info_fail.append(mod_id)
+
+    return mods_info_success, mods_info_fail
 
 
-def parse_modacf(path_acf):
+def parse_modacf(path_acf, return_local=True):
+    """通过游戏启动后定时调用steam更新的acf文件判断是否有mod更新
+    在当前版本，服务器开启时会读取一次acf文件，之后调用steam更新的acf文件不会保存回去，可能是在内存中，关闭时再覆写 （仅更新mod模式应该还是原来的策略）
+    就会导致 1 不能直接通过这个检测更新，2 运行期间开启额外进程更新mod后，额外进程修改的acf会被后关闭的主进程覆写，导致信息出问题
+    避免第二个问题，1 更新完关闭后正常启动两次服务器，利用第一次调用steam，更新acf文件，2 更新完复制acf文件，关闭服务器后，覆写"""
     with open(path_acf, 'r', encoding='utf-8') as f:
         data = f.read()
-    update_code = search(r'(?<="NeedsUpdate"\t\t")\d+(?=")', data).group(0)
-    if update_code == 0:  # steam会检测已经安装的所有mod的版本，也包括现在没有启用的mod，这种就不用管，主函数会再判断
-        return []
     data_local, data_remote = data.split('WorkshopItemDetails')
-    mod_version_local = findall(r'"(\d+)"\n\t\t{[\d\D]+?"timeupdated"\t\t"(\d+)"', data_local)  # \d+分别是modid和对应时间
-    mod_version_remote = findall(r'"(\d+)"\n\t\t{[\d\D]+?"timeupdated"\t\t"(\d+)"', data_remote)
-    mod_version_local = {i[0]: i[1] for i in mod_version_local}
-    mod_version_remote = {i[0]: i[1] for i in mod_version_remote}
-    need_update = []
-    for i in mod_version_local:
-        if i in mod_version_remote:  # 两部分mod数量会不一致，虽然不清楚原因，也可能写的时候知道现在忘了。反正启用的mod肯定两个都有
-            if mod_version_local.get(i) != mod_version_remote.get(i):
-                need_update.append(i)
-    return need_update
+    mod_version_touch = findall(r'"(\d+)"\n\t\t{[\d\D]+?"timetouched"\t\t"(\d+)"', data_remote)
+    mod_version_touch = {i[0]: i[1] for i in mod_version_touch}
+    if return_local:
+        return mod_version_touch
+
+    # 以下当前版本失效
+    # update_code = search(r'(?<="NeedsUpdate"\t\t")\d+(?=")', data).group(0)
+    # if update_code == '0':  # 游戏启动时 steam 会检测已经安装的所有mod的版本，也包括现在没有启用的mod，这种就不用管，主函数会再判断
+    #     return []
+    # data_local, data_remote = data.split('WorkshopItemDetails')
+    # mod_version_local = findall(r'"(\d+)"\n\t\t{[\d\D]+?"timeupdated"\t\t"(\d+)"', data_local)  # \d+分别是modid和对应时间
+    # mod_version_local = {i[0]: i[1] for i in mod_version_local}
+    # mod_version_remote = findall(r'"(\d+)"\n\t\t{[\d\D]+?"timeupdated"\t\t"(\d+)"', data_remote)
+    # mod_version_remote = {i[0]: i[1] for i in mod_version_remote}
+    # need_update = []
+    # for i in mod_version_local:
+    #     if i in mod_version_remote:  # 两部分mod数量会不一致，虽然不清楚原因，也可能写的时候知道现在忘了。反正启用的mod肯定两个都有
+    #         if mod_version_local.get(i) != mod_version_remote.get(i):
+    #             need_update.append(i)
+    # return need_update
 
 
-def get_modlist(mode=0):
+def get_modlist(don_check_lack=True):
     global path_cluster, path_dst, path_dst_bin, world_list, ugc_dir
     path_ugc_clu = pjoin(path_dst, 'ugc_mods', basename(path_cluster))
     path_mods = pjoin(path_dst, 'mods')
@@ -462,7 +480,7 @@ def get_modlist(mode=0):
                     mod_single[world] = list(set(mod_list_single))
         mod_list = list(set(mod_list))
 
-        if not mode:
+        if don_check_lack:
             for world in world_list:  # 查找是否有mod尚未下载并提示。
                 path_ugc_world = pjoin(ugc_dir.get(world, '') or pjoin(path_ugc_clu, world), 'content', '322330')
                 mod_lack_single[world] = []
@@ -477,6 +495,7 @@ def get_modlist(mode=0):
                 mod_lack_list = list(set(mod_lack_list))
                 print(now('blank'), f"mod {'、'.join(mod_lack_list)} 尚未下载，已作为待更新项加入更新列表")
 
+        # 所有世界已启用的 mod 列表 | 各个世界与对应已启用的 mod 列表的字典 | 各个世界与对应已启用但未下载的 mod 列表的字典
         return mod_list, mod_single, mod_lack_single
     except Exception as e:
         print(now(), 'get_modlist函数出错，未能找到开启的mod')
@@ -488,7 +507,7 @@ def write_mods_setup():
     try:
         global path_dst, path_cluster
         path_mods_setup = pjoin(path_dst, 'mods/dedicated_server_mods_setup.lua')
-        mods_list = get_modlist(1)[0]
+        mods_list = get_modlist(False)[0]
         mods_setup_text = '\n'.join([f'ServerModSetup("{i}")' for i in mods_list])
         if exists(path_mods_setup):
             with open(path_mods_setup, 'w+', encoding='utf-8') as f:
@@ -499,13 +518,11 @@ def write_mods_setup():
 
 
 def update_mod(tick=0, tick2=0, mode=0):
-    global path_cluster, path_dst, path_dst_bin, world_list, ugc_dir
+    global path_cluster, path_dst, path_dst_bin, world_list, ugc_dir, interval_update_mod
     dir_clu = basename(path_cluster)
     path_ugc_clu = pjoin(path_dst, 'ugc_mods', basename(path_cluster))
     text_normal = f'今日检测mod更新{tick}次，无可用更新'
     text_update = f'今日检测mod更新{tick}次，更新{tick2}次'
-    acf_time = [0]
-    need_update_dict = {}
     try:
         if tick == 0:
             print(now(), '正在检测mod更新')
@@ -513,45 +530,57 @@ def update_mod(tick=0, tick2=0, mode=0):
             print(now(), text_update if tick2 else text_normal)
             tick, tick2 = 1, 0
 
-        mod_list, mod_single, mod_lack_single = get_modlist()  # 获取当前存档启用的modid
+        mod_list, mod_single, mod_lack_single = get_modlist()  # 获取当前存档启用的 modid
 
-        for world in world_list:  # 通过steam acf文件获取已经下载的需要更新的modid
-            need_update_dict[world] = []
+        mods_version_local = {}
+        for world in world_list:  # 通过 steam acf 文件获取已经下载的 modid 与更新时间
+            mods_version_local[world] = []
             path_acf = pjoin(ugc_dir.get(world, '') or pjoin(path_ugc_clu, world), 'appworkshop_322330.acf')
             if exists(path_acf):
-                acf_time.append(stat(path_acf).st_mtime)
-                need_update_dict[world] = parse_modacf(path_acf)
+                mods_version_local[world] = parse_modacf(path_acf)
             else:
-                print(now('blank'), f'未找到{world}世界mod信息')
+                print(now('blank'), f'未找到{world}世界 mod 信息')
 
-        for world, world_val in need_update_dict.items():  # 删去没有开启的mod
-            mod_single_world = mod_single.get(world, [])
-            for mod_id in world_val.copy():
-                if mod_id not in mod_single_world:
-                    world_val.remove(mod_id)
+        for i in range(3):
+            try:
+                mod_version_remote, mod_version_remote_fail = getmodinfo(mod_list)
+                break
+            except Exception as e:
+                print(now(), '获取 mod 信息出错，原因：', end='')
+                if 'HTTP Error 503: Service Unavailable' in e.__str__():
+                    e = 'steam webapi 服务器繁忙'
+                print(e)
+        else:
+            print(now(), '从 webapi 获取 mod 信息失败')
+            return
+        if mod_version_remote_fail:
+            print(now(), f'mod: {"、".join(mod_version_remote_fail)} 无权限获取信息或 mod 不存在，请填写 steam apikey')
 
-        for world, world_val in mod_lack_single.items():  # 添加尚未下载的mod
-            need_update_single = need_update_dict.get(world)
-            for mod_id in world_val:
-                if mod_id not in need_update_single:
-                    need_update_single.append(mod_id)
+        need_update_dict = {}
+        # 逐个世界检查：各个 mod 最后更新时间 与 acf 文件记录的 mod 上次更新时间，获取各个世界需要更新的 modid 与 mod 名
+        for world, world_mods in mod_single.items():
+            need_update_dict[world] = {}
+            world_mods_local = mods_version_local.get(world, {})
+            for mod_id, mod_info in mod_version_remote.items():
+                mod_uptime = mod_info.get('updated_time')
+                if int(world_mods_local.get(mod_id, 0)) < int(mod_uptime):
+                    need_update_dict[world][mod_id] = mod_info.get('mod_name')
 
-        need_update_list = list(set([mod_id for world_val in need_update_dict.values() for mod_id in world_val]))
+        need_update_list = {mod_id: mod_name for world_mods in need_update_dict.values() for mod_id, mod_name in world_mods.items()}
 
         if not need_update_list:
             if tick == 0:
                 print(now('blank'), '没有mod需要更新')
             return
 
-        need_update_name = getmodinfo(need_update_list)
-        need_update_name_str = '、'.join([need_update_name.get(i, '') or i for i in need_update_name])
+        need_update_name_str = '、'.join([need_update_list.get(i, '') or i for i in need_update_list])
 
         print(now(), '开始更新mod', need_update_name_str)
         write_mods_setup()  # 更新一下mod_setup文件，避免文件被改动过造成不自动下载mod的问题
         tick2 += 1
 
-        times = 0
         start_update = [world for world, world_val in need_update_dict.items() if world_val]
+        updated_mods, updated_worlds = {}, {}
         for world in start_update:
             need_update = need_update_dict.get(world)
             path_acf = pjoin(ugc_dir.get(world, '') or pjoin(path_ugc_clu, world), 'appworkshop_322330.acf')
@@ -559,20 +588,26 @@ def update_mod(tick=0, tick2=0, mode=0):
             if ugc_dir.get(world, ''):
                 cmd += ['-ugc_directory', ugc_dir.get(world, '')]
             cmd += ['-only_update_server_mods']
+            times = 0
             while True:
                 times += 1
                 out, err = send_cmd(cmd, cwd=path_dst_bin)
                 if ']: FinishDownloadingServerMods Complete!' in out:
+
                     update_fail = []
-                    need_update_also = parse_modacf(path_acf)
-                    for modid in need_update:
-                        if modid in need_update_also:
-                            update_fail.append(modid)
-                    if not update_fail:
-                        break
+                    mods_local = parse_modacf(path_acf)
+                    for mod_id in need_update:
+                        if int(mod_version_remote[mod_id].get('updated_time')) > int(mods_local.get(mod_id, 0)):
+                            update_fail.append(mod_id)
 
                     with open(path_acf, 'r', encoding='utf-8') as f:
                         data = f.read()
+
+                    if not update_fail:
+                        updated_mods.update(need_update)
+                        updated_worlds[world] = data
+                        break
+
                     for modid in update_fail:  # 删去acf文件中更新失败的mod的信息，下次尝试更新时就会覆盖下载该mod
                         data = sub(r'\n\t\t"{}"\n\t\t{{[\d\D]+?}}'.format(modid), '', data)
                     with open(path_acf + 'tmp', 'w+', encoding='utf-8') as f:
@@ -581,12 +616,15 @@ def update_mod(tick=0, tick2=0, mode=0):
                     rename(path_acf + 'tmp', path_acf)
 
                     if times > 5:
-                        update_success = [i for i in need_update if i not in update_fail]
-                        name_success, name_fail = getmodinfo(update_success), getmodinfo(update_fail)
-                        name_success_str = '、'.join([name_success.get(i, '') or i for i in update_success])
-                        name_fail_str = '、'.join([name_fail.get(i, '') or i for i in update_fail])
+                        mods_success = {i: j for i, j in need_update.items() if i not in update_fail}
+                        mods_fail = {i: j for i, j in need_update.items() if i in update_fail}
+                        name_success_str = '、'.join([mods_success.get(i, '') or i for i in mods_success])
+                        name_fail_str = '、'.join([mods_fail.get(i, '') or i for i in mods_fail])
                         print(now('blank'), f'世界{world}更新mod {name_success_str} 成功')
                         print(now('blank'), f'世界{world}更新mod {name_fail_str} 失败')
+                        if mods_success:
+                            updated_mods.update(mods_success)
+                            updated_worlds[world] = data
                         break
                 else:
                     print(now('blank'), f'{world}更新mod失败{times}次')
@@ -595,23 +633,35 @@ def update_mod(tick=0, tick2=0, mode=0):
                         print(now('blank'), f'out: {out}')
                         print(now('blank'), f'err: {err}')
                         break
-        print(f"{'':>20}mod {need_update_name_str} 更新完成。开始重启服务器")
+        if not updated_mods:
+            print(now('blank'), '更新mod失败')
+        updated_mods_str = '、'.join([updated_mods.get(i, '') or i for i in updated_mods])
+        print(f"{'':>20}mod 更新完成。开始重启服务器")
 
-        send_messages('update_mod', need_update_name_str)  # 发送公告提示重启
-        running_list = [i[0] for i in zip(world_list, running(world_list)) if i[1]]  # 记录正在运行的世界，最后开启
+        send_messages('update_mod', updated_mods_str)  # 发送公告提示重启
+        running_list = [i[0] for i in zip(world_list, running(world_list)) if i[1]]  # 记录已经正在运行的世界，最后开启，要不要只重启已更新的
         stop_world(running_list)
+        for world in updated_worlds:  # 覆写被游戏进程覆写的acf文件
+            path_acf = pjoin(ugc_dir.get(world, '') or pjoin(path_ugc_clu, world), 'appworkshop_322330.acf')
+            with open(path_acf + 'tmp', 'w+', encoding='utf-8') as f:
+                f.write(data)
+            remove(path_acf)
+            rename(path_acf + 'tmp', path_acf)
         start_world(running_list)
     except Exception as e:
         print(now('blank'), 'update_mod函数出错')
         print(now('blank'), e)
     finally:
         tick += 1
-        acftime = max(acf_time)
-        t1 = acftime + 900 + 60 - time() if acftime + 900 + 60 - time() > 0 else 900  # 常规更新的间隔时间
-        #  一天秒数 - (当前秒数 - 设置时间对应的世界时秒数(设定时间的秒数 - 时区带来的秒数差)) % 86400
-        t2 = 86400 - (time() - (0 * 3600 - localtime().tm_gmtoff)) % 86400
-        mode = 1 if t1 > t2 else 0
-        t = max(min(t1, t2), 5)
+        t1 = max(interval_update_mod * 60, 30)  # 常规更新的间隔时间
+        #  一天秒数 - 当天自设定时间到现在的秒数(当前秒数 - 设置时间对应的世界时秒数(设定时间的秒数 - 时区带来的秒数差)) % 86400
+        t2 = 86400 - (time() - (0 * 3600 - localtime().tm_gmtoff)) % 86400  # 距离设定时间的（0点）的秒数
+        if t1 > t2:
+            mode = 1
+            t = t2
+        else:
+            mode = 0
+            t = t1
         Timer(t, update_mod, [tick, tick2, mode]).start()  # 间隔t秒后再次执行该函数。即将到通知时间，则准备输出运行次数
 
 
@@ -631,7 +681,7 @@ def auto_restart():
             tar_name = f'{world}_bak.tar.gz'
             text_restart = f'{world}进程已经重新开启，开始守护'
             text_restarted = f'{world}进程曾经重新开启，开始守护'
-            text_sucess = f'{world}进程已在崩溃后重新启动'
+            text_success = f'{world}进程已在崩溃后重新启动'
             cmd_tar = ['tar', '-czf', tar_name, cluster]
             cmd_untar = ['tar', '-xzf', tar_name, '-C', path_tmp]
             path_log = pjoin(path_cluster, world, log_name)
@@ -644,7 +694,7 @@ def auto_restart():
                 if status[0] != 0:
                     is_run[0] += 1
                     if is_run[0] == is_run_times:
-                        print(now(), text_restart if status[0] == 9999 else text_sucess)
+                        print(now(), text_restart if status[0] == 9999 else text_success)
                         is_run[0], status[0] = 0, 0
                 continue
             if not exists(path_log):
@@ -658,7 +708,7 @@ def auto_restart():
                 if status[0] != 0:
                     is_run[0] += 1
                     if is_run[0] == is_run_times:
-                        print(now(), text_restarted if status[0] == 9999 else text_sucess)
+                        print(now(), text_restarted if status[0] == 9999 else text_success)
                         is_run[0], status[0] = 0, 0
                 continue
             if text_update_mod in data[-99:]:  # 检测更新mod特征信息，以免在世界关闭情况下更新mod后被判定为崩溃
@@ -701,7 +751,7 @@ def auto_restart():
 
 def send_messages(mode, extra='', total_time=0):
     global screen_name_master, all_interval
-    all_interval_s = all_interval * 60
+    all_interval_s = max(all_interval * 60, 1)
     intervals = [i * all_interval_s for i in (3 / 6, 2 / 6, 1 / 6)]
     messages = {'endless': {'text': '模式已改为无尽', 'total_time': 60},
                 'update': {'text': '游戏更新完成', 'total_time': 60},
@@ -911,44 +961,51 @@ if __name__ == "__main__":
     # 各个世界的文件夹名与其对应的screen名，第一个为主世界。此项必须确保无误
     screen_dir = {'Master': 'DST_MASTER', 'Caves': 'DST_CAVES'}
     # 结构  {'主世界文件夹名': '主世界screen会话名', '世界二文件夹名': '世界二screen会话名', '世界三文件夹名': '世界三screen会话名', ...}
+
+    # steam 的 apikey（网页 API 密钥），访问 https://steamcommunity.com/dev/apikey 获取。仅本地使用
+    # 填写错误的密钥会导致检测 mod 更新功能失效。该项用于获取未公开 mod 的信息，用于检测 mod 更新。不填会导致无法检测小部分 mod 更新，
+    steam_api_key = ''
+    # apikey_search 1 成功 9 不存在 15 权限不足  | 可以获取 公开、非公开、拥有好友关系的仅好友  不能获取 隐藏、没有好友关系的仅好友
+    # nonkey_search 1 成功 9 不存在 权限不足     | 可以获取 公开                          不能获取 非公开、仅好友、隐藏
     # -必填区-必填区-必填区-必填区-必填区-必填区-必填区-必填区-必填区-必填区-必填区-必填区-必填区-必填区-必填区-
 
     # -选填区-选填区-选填区-选填区-选填区-选填区-选填区-选填区-选填区-选填区-选填区-选填区-选填区-选填区-选填区-
-    all_interval = 2        # 重启服务器前发送公告的提前时间（单位/分钟）
-    day_to_change = 40      # 转为无尽的天数，到达该天数5s后将会更改（单位/游戏天）
-    interval_restart = 2    # 检测游戏是否崩溃的间隔时间（单位/分钟）
-    interval_update = 15    # 检测游戏更新的间隔时间（单位/分钟）
-    rollback = 2            # 崩溃后尝试回档启动时允许的回档次数（单位/次）
-    time_to_reset = 24      # 服务器无人自动重置时间（单位/小时）
-    time_to_backupchat = 2  # 备份聊天记录的间隔时间（单位/分钟）
+    all_interval = 2                           # 重启服务器前发送公告的提前时间（单位/分钟）
+    day_to_change = 40                         # 转为无尽的天数，到达该天数5s后将会更改（单位/游戏天）
+    interval_restart = 2                       # 检测游戏是否崩溃的间隔时间（单位/分钟）
+    interval_update = 15                       # 检测游戏更新的间隔时间（单位/分钟）
+    interval_update_mod = 15                   # 检测 mod 更新的间隔时间（单位/分钟）
+    rollback = 2                               # 崩溃后尝试回档启动时允许的回档次数（单位/次）
+    time_to_reset = 24                         # 服务器无人自动重置时间（单位/小时）
+    time_to_backupchat = 2                     # 备份聊天记录的间隔时间（单位/分钟）
     # -选填区-选填区-选填区-选填区-选填区-选填区-选填区-选填区-选填区-选填区-选填区-选填区-选填区-选填区-选填区-
 
     # -没事别填区-没事别填区-没事别填区-没事别填区-没事别填区-没事别填区-没事别填区-没事别填区-没事别填区-没事别填区-
     # 如果不懂什么意思，不要动下面这行。 如果自定义了 ugc_mods 路径，需要填写对应绝对路径。只需要填自定义了的世界，未定义不填或留空
     ugc_dir = {'Master': '', 'Caves': ''}
     # 结构  {'世界1文件夹名': '世界1的ugc_mods路径', '世界2文件夹名': '世界2的ugc_mods路径', ...}
-    path_steam_raw = ''     # 默认留空。需要自行指定路径时填写  如'/home/ubuntu/Steam'
-    path_steamcmd_raw = ''  # 默认留空。需要自行指定路径时填写  如'/home/ubuntu/steamcmd'
-    path_dst_raw = ''       # 默认留空。需要自行指定路径时填写  如'/home/ubuntu/dst'
-    path_cluster_raw = ''   # 默认留空。需要自行指定路径时填写  如'/home/ubuntu/.klei/DoNotStarveTogether/MyDediServer'
+    path_steam_raw = ''                        # 默认留空。需要自行指定路径时填写  如'/home/ubuntu/Steam'
+    path_steamcmd_raw = ''                     # 默认留空。需要自行指定路径时填写  如'/home/ubuntu/steamcmd'
+    path_dst_raw = ''                          # 默认留空。需要自行指定路径时填写  如'/home/ubuntu/dst'
+    path_cluster_raw = ''                      # 默认留空。需要自行指定路径时填写  如'/home/ubuntu/.klei/DoNotStarveTogether/MyDediServer'
     # -没事别填区-没事别填区-没事别填区-没事别填区-没事别填区-没事别填区-没事别填区-没事别填区-没事别填区-没事别填区-
 
     # ---自定义参数---自定义参数---自定义参数---
 
     world_list = tuple([*screen_dir])
     master_name, screen_name_master = world_list[0], screen_dir.get(world_list[0])
-    path = abspath(getsourcefile(lambda: 0))  # 获取本文件所在目录绝对路径
-    show_version()  # 打印版本
-    gc_collect()  # 内存回收
-    world_status = {}  # 初始化世界状态
+    path = abspath(getsourcefile(lambda: 0))   # 获取本文件所在目录绝对路径
+    show_version()                             # 打印版本
+    gc_collect()                               # 内存回收
+    world_status = {}                          # 初始化世界状态
     path_steam, path_steamcmd, path_dst, path_cluster = get_paths()  # 自动检测所需路径
     path_dst_bin = pjoin(path_dst, 'bin64')
 
     # 以下为功能区，不要哪个删哪行
-    chatlog()              # 自动备份聊天记录 (删除该行将不会再定时备份聊天记录
-    reset()                # 检测是否需要重置 (删除该行将不会再检测是否需要重置
+    chatlog()                                  # 自动备份聊天记录 (删除该行将不会再定时备份聊天记录
+    reset()                                    # 检测是否需要重置 (删除该行将不会再检测是否需要重置
     # 无尽模式下主动重置世界并改为生存会导致自动转无尽有一定的延迟。因为无尽模式下检测间隔为：自动重置时间加自动转无尽时间
-    endless()              # 检测是否需要转为无尽 (删除该行将不会再检测是否需要转为无尽
-    update()               # 检测是否存在并执行更新 (删除该行将不会再检测是否存在并进行更新
-    update_mod()           # 检测是否存在并执行mod更新 (删除该行将不会再检测是否存在并进行mod更新
-    auto_restart()         # 检测到游戏崩溃后自动启动 (删除该行将不会再守护游戏进程
+    endless()                                  # 检测是否需要转为无尽 (删除该行将不会再检测是否需要转为无尽
+    update()                                   # 检测是否存在并执行更新 (删除该行将不会再检测是否存在并进行更新
+    update_mod()                               # 检测是否存在并执行mod更新 (删除该行将不会再检测是否存在并进行mod更新
+    auto_restart()                             # 检测到游戏崩溃后自动启动 (删除该行将不会再守护游戏进程
