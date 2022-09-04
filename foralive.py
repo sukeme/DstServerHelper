@@ -1,9 +1,10 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
 # 21.05.10 by suke
-# version 22.09.05
+#
 
 """
+version 22.09.05
 在本文件所在路径下执行开启指令。括号内内容，不带括号( screen -dmS foralive python3 foralive.py )
 关闭指令( screen -X -S foralive quit )
 开启后查看同目录下 foralive.log 日志文件了解 是否开启成功 与 运行情况
@@ -26,13 +27,13 @@
 """
 # ---自定义参数---自定义参数---自定义参数---
 
-open_reset = 0  # 闲置超时重置  数字为 0 代表关闭，为 1 代表开启
-open_endless = 0  # 满天数转无尽  数字为 0 代表关闭，为 1 代表开启
-open_update = 1  # 检测游戏更新  数字为 0 代表关闭，为 1 代表开启
-open_chatlog = 1  # 备份聊天记录  数字为 0 代表关闭，为 1 代表开启
-open_update_mod = 1  # 检测模组更新  数字为 0 代表关闭，为 1 代表开启
-open_crash_restart = 1  # 游戏崩溃自启  数字为 0 代表关闭，为 1 代表开启
-open_curl_restart = 1  # 网络错误重启  数字为 0 代表关闭，为 1 代表开启
+open_reset                = 0    # 闲置超时重置  数字为 0 代表关闭，为 1 代表开启
+open_endless              = 0    # 满天数转无尽  数字为 0 代表关闭，为 1 代表开启
+open_update               = 1    # 检测游戏更新  数字为 0 代表关闭，为 1 代表开启
+open_chatlog              = 1    # 备份聊天记录  数字为 0 代表关闭，为 1 代表开启
+open_update_mod           = 1    # 检测模组更新  数字为 0 代表关闭，为 1 代表开启
+open_crash_restart        = 1    # 游戏崩溃自启  数字为 0 代表关闭，为 1 代表开启
+open_curl_restart         = 1    # 网络错误重启  数字为 0 代表关闭，为 1 代表开启
 
 # -必填区-必填区-必填区-必填区-必填区-必填区-必填区-必填区-必填区-必填区-必填区-必填区-必填区-必填区-必填区-
 # 各个世界的文件夹名与其对应的screen名，第一个为主世界。此项必须确保无误
@@ -47,26 +48,26 @@ steam_api_key = ''
 # -必填区-必填区-必填区-必填区-必填区-必填区-必填区-必填区-必填区-必填区-必填区-必填区-必填区-必填区-必填区-
 
 # -选填区-选填区-选填区-选填区-选填区-选填区-选填区-选填区-选填区-选填区-选填区-选填区-选填区-选填区-选填区-
-all_interval = 2  # 重启服务器前发送公告的提前时间（单位/分钟）
-day_to_change = 40  # 转为无尽的天数，到达该天数5s后将会更改（单位/游戏天）
-interval_crash_rs = 2  # 检测游戏是否崩溃的间隔时间（单位/分钟）
-interval_curl_rs = 10  # 检测游戏是否崩溃的间隔时间（单位/分钟）
-interval_update = 15  # 检测游戏更新的间隔时间（单位/分钟）
-interval_update_mod = 15  # 检测 mod 更新的间隔时间（单位/分钟）
-rollback = 2  # 游戏崩溃后尝试回档启动时允许的最大回档次数（单位/次）
-time_to_reset = 24  # 服务器无人自动重置时间（单位/小时）
-time_to_backupchat = 2  # 备份聊天记录的间隔时间（单位/分钟）
-dst_mode = 64  # 启动游戏使用的饥荒服务器版本，32 代表 32 位服务器，64 代表 64 位服务器
+day_to_endless            = 40   # 转为无尽的天数，到达该天数5s后将会更改（单位/游戏天）
+dst_bin                   = 64   # 启动游戏使用的饥荒服务器版本，32 代表 32 位服务器，64 代表 64 位服务器
+interval_backup_chat      = 2    # 备份聊天记录的间隔时间（单位/分钟）
+interval_crash_rs         = 2    # 检测游戏是否崩溃的间隔时间（单位/分钟）
+interval_curl_rs          = 10   # 检测游戏是否崩溃的间隔时间（单位/分钟）
+interval_warn             = 2    # 重启服务器前发送公告的预警时间（单位/分钟）
+interval_update           = 15   # 检测游戏更新的间隔时间（单位/分钟）
+interval_update_mod       = 15   # 检测 mod 更新的间隔时间（单位/分钟）
+rollback_max              = 2    # 游戏崩溃后尝试回档启动时允许的最大回档次数（单位/次）
+time_to_reset             = 24   # 服务器无人自动重置时间（单位/小时）
 # -选填区-选填区-选填区-选填区-选填区-选填区-选填区-选填区-选填区-选填区-选填区-选填区-选填区-选填区-选填区-
 
 # -没事别填区-没事别填区-没事别填区-没事别填区-没事别填区-没事别填区-没事别填区-没事别填区-没事别填区-没事别填区-
 # 如果不懂什么意思，不要动下面这行。 如果自定义了 ugc_mods 路径，需要填写对应绝对路径。只需要填自定义了的世界，未定义不填或留空
 ugc_dir = {'Master': '', 'Caves': ''}
 # 结构  {'世界一文件夹名': '世界一的 ugc_mods 路径', '世界二文件夹名': '世界二的 ugc_mods 路径', ...}
-path_steam_raw = ''  # 默认留空。需要自行指定路径时填写  如'/home/ubuntu/Steam'
-path_steamcmd_raw = ''  # 默认留空。需要自行指定路径时填写  如'/home/ubuntu/steamcmd'
-path_dst_raw = ''  # 默认留空。需要自行指定路径时填写  如'/home/ubuntu/dst'
-path_cluster_raw = ''  # 默认留空。需要自行指定路径时填写  如'/home/ubuntu/.klei/DoNotStarveTogether/MyDediServer'
+path_steam_raw             = ''  # 默认留空。需要自行指定路径时填写  如'/home/ubuntu/Steam'
+path_steamcmd_raw          = ''  # 默认留空。需要自行指定路径时填写  如'/home/ubuntu/steamcmd'
+path_dst_raw               = ''  # 默认留空。需要自行指定路径时填写  如'/home/ubuntu/dst'
+path_cluster_raw           = ''  # 默认留空。需要自行指定路径时填写  如'/home/ubuntu/.klei/DoNotStarveTogether/MyDediServer'
 # -没事别填区-没事别填区-没事别填区-没事别填区-没事别填区-没事别填区-没事别填区-没事别填区-没事别填区-没事别填区-
 
 # ---自定义参数---自定义参数---自定义参数---
@@ -88,14 +89,14 @@ from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 fmt = logging.Formatter(
-    fmt="%(asctime)s | %(levelname)-8s | line: %(lineno)4d | func: %(funcName)12s | - %(message)s",
+    fmt="%(asctime)s | %(levelname)-8s | %(lineno)4d | %(funcName)12s | - %(message)s",
     datefmt="%y-%m-%d %H:%M:%S"
 )
 
 console = logging.StreamHandler()
 console.setLevel(logging.INFO)
 console.setFormatter(fmt)
-file = logging.FileHandler(filename='./foralive.log', mode='a', encoding='utf-8', errors='ignore')
+file = logging.FileHandler(filename='./foralive.log', mode='a', encoding='utf-8')
 file.setLevel(logging.DEBUG)
 file.setFormatter(fmt)
 
@@ -110,7 +111,7 @@ error = log.error
 exception = log.exception
 
 
-def find_path() -> tuple[str, str, str, str]:
+def find_path() -> tuple:
     def test_path(raw: str, verify: list, paths_list: list, files_list: list, path_root: str, mode: int = 0) -> None:
         if raw or verify[0] not in files_list:
             return
@@ -226,7 +227,7 @@ def survival_days(world=None):
         info_['day'] = day
         info_['passed_time'] = passed_time
         info_['season'] = season
-        return info
+        return info_
 
     world, mode = [world or master_name], (0, 1)[world is None]
     day_info, newest_time, newest_path = {'day': 0, 'passed_time': '', 'season': ''}, 0, ''
@@ -295,7 +296,7 @@ def reset():
 
 def endless(times=0, text=''):
     path_clu_ini = pjoin(path_cluster, 'cluster.ini')
-    day_to_change_real = max(day_to_change - 1, 1)  # n天早上转，只等待n-1天
+    day_to_change_real = max(day_to_endless - 1, 1)  # n天早上转，只等待n-1天
     reset_time = max(time_to_reset * 60 * 60, 30 * 60)
     change_time = day_to_change_real * 8 * 60
     day_time = 8 * 60
@@ -507,7 +508,7 @@ def chatlog():
     except Exception as e:
         exception(e)
     finally:
-        t = max(time_to_backupchat * 60, 30)
+        t = max(interval_backup_chat * 60, 30)
         Timer(t, chatlog).start()  # 间隔t秒后再次执行该函数
 
 
@@ -826,7 +827,7 @@ def auto_restart(mode):
                     if stat(path_log).st_size > 204800:  # 日志过大时只读取一部分。清理一份世界快照加六玩家快照输出信息占428字节(50+63*6)
                         f.seek(-200000, 2)
                     data = f.read()
-                if len(parrent_wrong_curl.findall(data)) > 5:
+                if len(parrent_wrong_curl.findall(data)) > 3:
                     world_curl_error.append(world)
 
             elif mode == 'crash':
@@ -874,7 +875,7 @@ def auto_restart(mode):
                         status[0] = 9999
                         warn('未能备份存档，可能是权限不足。若启动失败将直接暂停守护')
                     start_world(world) if not running(world) else 0
-                elif status[0] <= max(rollback, 0):
+                elif status[0] <= max(rollback_max, 0):
                     status[0] += 1
                     info(f'{world}进程启动失败，第{status[0] - 1}次尝试回档再次启动。')
                     newest_path = survival_days(world)
@@ -885,7 +886,7 @@ def auto_restart(mode):
                     remove(newest_path)
                     remove(newest_path.replace('.meta', ''))
                     start_world(world) if not running(world) else 0
-                elif status[0] == max(rollback + 1, 1):
+                elif status[0] == max(rollback_max + 1, 1):
                     status[0] = 9999
                     warn(f'{world}进程启动失败，恢复操作前存档，暂停守护')
                     mkdir(path_tmp) if not exists(path_tmp) else 0
@@ -895,9 +896,11 @@ def auto_restart(mode):
                     rmtree(path_tmp)  # 删除临时存档
 
         if mode == 'curl_error':
-            send_messages('curl_error')  # 发送公告提示重启
-            stop_world(world_curl_error)
-            start_world(world_curl_error)
+            if world_curl_error:
+                info(f'世界 {"、".join(world_curl_error)} 与 klei 服务器连接失败，尝试重启')
+                send_messages('curl_error')  # 发送公告提示重启
+                stop_world(world_curl_error)
+                start_world(world_curl_error)
     except Exception as e:
         exception(e)
     finally:
@@ -907,7 +910,7 @@ def auto_restart(mode):
 
 
 def send_messages(mode, extra='', total_time=0):
-    all_interval_s = max(all_interval * 60, 1)
+    all_interval_s = max(interval_warn * 60, 1)
     intervals = [i * all_interval_s for i in (3 / 6, 2 / 6, 1 / 6)]
     messages = {'endless': {'text': '游戏模式已改为无尽', 'total_time': 60},
                 'update': {'text': '游戏更新完成', 'total_time': 60},
@@ -918,7 +921,7 @@ def send_messages(mode, extra='', total_time=0):
     message = f'{message}\\\\n' if not extra else f'{message}\\\\n{extra}\\\\n'  # 神奇的转义
     total_time = total_time or messages.get(mode).get('total_time')
     for interval in intervals:
-        msg = f'{message}󰀅服务器将于{int(all_interval_s)}s后重启，预计重启后{total_time}s可重新连接󰀅'
+        msg = f'{message}󰀅服务器将于 {int(all_interval_s)}s 后重启，预计重启后 {total_time}s 可重新连接󰀅'
         cmd_message = ['screen', '-S', screen_name_master, '-X', 'stuff',
                        f'TheNet:SystemMessage("{msg}")\n']
         send_cmd(cmd_message)
@@ -1028,10 +1031,8 @@ def now(mode=(0.0 or 0 or '' or None)):  # 无参数返回当前格式化时间 
 
 def show_version():
     pattern = r'version \d\d\.\d\d\.\d\d'
-    with open(path, 'r', encoding='utf-8') as f:
-        data = f.read()
-    v = search(pattern, data)
-    warn(v.group() if v else '未找到版本信息')
+    v = search(pattern, __doc__)
+    info(v.group() if v else '未找到版本信息')
 
 
 def gc_collect():
@@ -1042,33 +1043,32 @@ def gc_collect():
 world_list = tuple([*screen_dir])  # 获取世界列表
 master_name, screen_name_master = world_list[0], screen_dir.get(world_list[0])  # 获取主世界文件夹与 screen 作业名
 path = abspath(getsourcefile(lambda: 0))  # 获取本文件所在目录绝对路径
-if not exists(path_steam_raw):
+show_version()  # 打印版本
+if path_steam_raw and not exists(path_steam_raw):
     warn(f'{path_steam_raw} 路径不存在')
     path_steam_raw = ''
-if not exists(path_steamcmd_raw):
+if path_steamcmd_raw and not exists(path_steamcmd_raw):
     warn(f'{path_steamcmd_raw} 路径不存在')
     path_steamcmd_raw = ''
-if not exists(path_dst_raw):
+if path_dst_raw and not exists(path_dst_raw):
     warn(f'{path_dst_raw} 路径不存在')
     path_dst_raw = ''
-if not exists(path_cluster_raw):
+if path_cluster_raw and not exists(path_cluster_raw):
     warn(f'{path_cluster_raw} 路径不存在')
     path_cluster_raw = ''
 world_status = {}  # 初始化世界状态
 world_status_lock = Lock()  # 保护世界状态
 
+path_steam, path_steamcmd, path_dst, path_cluster = find_path()  # 自动检测所需路径
+if dst_bin == 32:
+    dst_startup_name = 'dontstarve_dedicated_server_nullrenderer'
+    path_dst_bin = pjoin(path_dst, 'bin')
+else:
+    dst_startup_name = 'dontstarve_dedicated_server_nullrenderer_x64'
+    path_dst_bin = pjoin(path_dst, 'bin64')
 
 if __name__ == '__main__':
-    show_version()  # 打印版本
     gc_collect()  # 内存回收
-
-    path_steam, path_steamcmd, path_dst, path_cluster = find_path()  # 自动检测所需路径
-    if dst_mode == 32:
-        dst_startup_name = 'dontstarve_dedicated_server_nullrenderer'
-        path_dst_bin = pjoin(path_dst, 'bin')
-    else:
-        dst_startup_name = 'dontstarve_dedicated_server_nullrenderer_x64'
-        path_dst_bin = pjoin(path_dst, 'bin64')
 
     open_chatlog and chatlog()
     open_reset and reset()
