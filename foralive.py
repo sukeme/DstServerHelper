@@ -4,7 +4,7 @@
 #
 
 """
-version 22.09.05
+version 22.09.07
 在本文件所在路径下执行开启指令。括号内内容，不带括号( screen -dmS foralive python3 foralive.py )
 关闭指令( screen -X -S foralive quit )
 开启后查看同目录下 foralive.log 日志文件了解 是否开启成功 与 运行情况
