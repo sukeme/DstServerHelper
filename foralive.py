@@ -85,6 +85,7 @@ from signal import SIGTERM
 from subprocess import PIPE, Popen, TimeoutExpired
 from threading import Timer, Lock
 from time import localtime, sleep, strftime, time
+from typing import Union
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
@@ -384,18 +385,25 @@ def update(tick=0, tick2=0):
         test_start = time()
         # if exists(path_appinfo):  # 删除appinfo缓存文件。据说不删会获取到缓存里的旧id，但是测试有更新时可以正常获取到新id。
         #     remove(path_appinfo)  # 删：用时~30s，不删：用时~5s
+        # steam 输出只会在 out 中，err 始终为空
         out1, err1 = send_cmd(cmd_build, cwd=path_steamcmd, timeout=300)
         buildids_new = findall(r'"branches"[\d\D]*?"public"[\d\D]*?"buildid"\s*"(\d+)"', out1)
         if not buildids_new:
             if 'Timed out waiting for AppInfo update.' in out1:
                 err1, out1 = '更新 appinfo 超时', ''
-            if '(Service Unavailable)' in out1:
+            elif '(Service Unavailable)' in out1:
                 err1, out1 = '服务器繁忙', ''
+            elif 'FAILED (No Connection)' in out1:
+                err1, out1 = '多次尝试登录失败', ''
+            elif 'FAILED (Try another CM)' in out1:
+                err1, out1 = '连接登录服务器失败', ''
+            elif 'FAILED (Timeout)' in out1:
+                err1, out1 = '连接登录服务器超时', ''
             err1 = '\n'.join(line for line in err1.split('\n')
                              if '): ignored.' not in line)  # 去除被忽略的错误
             out1 = '\n'.join(line for line in out1.split('\n')
                              if 'Warning: ' not in line)  # 去除警告
-            error(f'检测最新buildid失败，耗时：{time() - test_start}，原因：{err1}')
+            error(f'检测最新 buildid 失败，耗时：{int(time() - test_start)}s，原因：{err1}')
             out1 and error(out1)
             return
         newbuildid = int(buildids_new[0])
@@ -909,27 +917,27 @@ def auto_restart(mode):
         Timer(t, auto_restart, [mode]).start()  # 间隔t秒后再次执行该函数
 
 
-def send_messages(mode, extra='', total_time=0):
-    all_interval_s = max(interval_warn * 60, 1)
-    intervals = [i * all_interval_s for i in (3 / 6, 2 / 6, 1 / 6)]
-    messages = {'endless': {'text': '游戏模式已改为无尽', 'total_time': 60},
-                'update': {'text': '游戏更新完成', 'total_time': 60},
-                'update_mod': {'text': '模组更新完成', 'total_time': 60},
-                'curl_error': {'text': '服务器与 klei 连接失败', 'total_time': 60},
-                }
+def send_messages(mode: str, extra: str = '', total_time: int = 0) -> None:
+    all_interval_s = int(max(interval_warn * 60, 1))
+    intervals = [int(i * all_interval_s) for i in (3 / 6, 2 / 6, 1 / 6)]
+    messages = {
+        'endless': {'text': '游戏模式已改为无尽', 'total_time': 60},
+        'update': {'text': '游戏更新完成', 'total_time': 60},
+        'update_mod': {'text': '模组更新完成', 'total_time': 60},
+        'curl_error': {'text': '服务器与 klei 失去连接，可能导致掉皮肤或无法加入等问题', 'total_time': 60},
+        }
     message = messages.get(mode).get('text')
     message = f'{message}\\\\n' if not extra else f'{message}\\\\n{extra}\\\\n'  # 神奇的转义
     total_time = total_time or messages.get(mode).get('total_time')
     for interval in intervals:
-        msg = f'{message}󰀅服务器将于 {int(all_interval_s)}s 后重启，预计重启后 {total_time}s 可重新连接󰀅'
-        cmd_message = ['screen', '-S', screen_name_master, '-X', 'stuff',
-                       f'TheNet:SystemMessage("{msg}")\n']
-        send_cmd(cmd_message)
+        msg = f'{message}󰀅服务器将于 {all_interval_s}s 后重启，预计重启后 {total_time}s 可重新连接󰀅'
+        cmd_message = ['screen', '-S', screen_name_master, '-X', 'stuff', f'TheNet:SystemMessage("{msg}")\n']
+        send_cmd(cmd_message, timeout=5)
         all_interval_s -= interval
         sleep(interval)
 
 
-def running(worldnames):  # 检查世界是否开启，参数为str时返回数字，iter时返回列表
+def running(worldnames: Union[str, iter]) -> Union[int, iter]:  # 检查世界是否开启，参数为str时返回数字，iter时返回列表
     # 不会添加tmux支持  http://louiszhai.github.io/2017/09/30/tmux
     # tmux has-session -t session1
     # tmux kill-session -t session1
@@ -953,20 +961,23 @@ def running(worldnames):  # 检查世界是否开启，参数为str时返回数�
         return 1 if status else tuple(1 for _ in worldnames)
 
 
-def start_world(world_names):  # str, iter
+def start_world(world_names: Union[str, iter]) -> tuple:
     persistent_storage_root, conf_dir, cluster = path_cluster.rsplit('/', 2)  # 完整参数看 饥荒启动参数.txt
     world_names = [world_names] if isinstance(world_names, str) else world_names
     for world_name in world_names:
         if running(world_name):
-            info(f'{world_name}世界已在运行，取消开启')
+            info(f'{world_name} 世界已在运行，取消开启')
             continue
-        cmd_start = ['screen', '-dmS', screen_dir.get(world_name), f'./{dst_startup_name}',
-                     '-persistent_storage_root', persistent_storage_root,
-                     '-conf_dir', conf_dir, '-cluster', cluster, '-shard', world_name]
+        cmd_start = ['screen', '-dmS', screen_dir.get(world_name),  # 后台启动 screen
+                     f'./{dst_startup_name}',  # 饥荒启动程序文件名
+                     '-persistent_storage_root', persistent_storage_root,  # 游戏根路径
+                     '-conf_dir', conf_dir,  # 游戏路径
+                     '-cluster', cluster,  # 存档路径
+                     '-shard', world_name]  # 世界路径
         if ugc_dir.get(world_name, ''):
             cmd_start += ['-ugc_directory', ugc_dir.get(world_name)]
-        send_cmd(cmd_start, 120, path_dst_bin)
-    sleep(1)
+        send_cmd(cmd_start, timeout=10, cwd=path_dst_bin)
+    sleep(2)
     success, fail = [], []
     for world_name in world_names:
         success.append(world_name) if running(world_name) else fail.append(world_name)
@@ -974,46 +985,60 @@ def start_world(world_names):  # str, iter
         info(f"已经开启世界 {'、'.join(success)}")
     if fail:
         info(f"未能开启世界 {'、'.join(fail)}")
+    return success, fail
 
 
-def stop_world(world_names):  # str, iter
+def stop_world(world_names: Union[str, iter]) -> tuple:
     world_names = [world_names] if isinstance(world_names, str) else world_names
     for world_name in world_names:
         send_cmd(['screen', '-wipe'])  # 清理无效的screen会话
         cmd_stop = ['screen', '-S', screen_dir.get(world_name), '-X', 'stuff', 'c_shutdown(true)\n']
         send_cmd(cmd_stop)
-    sleep(9)
+    # 每秒检测一次状态，八秒内未关闭不做处理，超过八秒后，开始尝试强行关闭，强行关闭失败四次后，放弃尝试，视为失败
+    close_seconds = 8
     success, fail = [], []
     for world_name in world_names:
+        sleep(1)
         if running(world_name):
             fail.append(world_name)
-            if fail.count(world_name) > 2:
+            if fail.count(world_name) > close_seconds * 1.5:
+                continue  # 超过十二次后放弃尝试
+            world_names.append(world_name)  # 重新加入循环
+            if fail.count(world_name) <= close_seconds:
+                continue  # 低于八次不做处理
+
+            warn(f'未能关闭世界 {world_name}，尝试强行停止。')
+            # 前后加空格以确保不会误判。比如 cave 和 cave1
+            screen_name = f' {screen_dir.get(world_name)} '
+            if "'" in screen_name:
+                cmd_pid = ['ps', '-ef']
+                cmd_kill = ['xargs', 'kill', '-9']
+                pid_list = [i.split()[1] for i in send_cmd(cmd_pid)[0].split('\n') if screen_name in i and 'dontstarv' in i]
+                send_cmd(cmd_kill, inputs='\n'.join(pid_list))
                 continue
-            sleep(1)
-            world_names.append(world_name)
-            cmd_pid = ['ps', '-ef']
-            cmd_kill = ['xargs', 'kill', '-9']
-            warn(f'未能关闭世界{world_name}，尝试强行停止。')
-            screen_name = f' {screen_dir.get(world_name)} '  # 前后加空格以确保不会误判。比如cave和cave1
-            pid_list = [i.split()[1] for i in send_cmd(cmd_pid)[0].split('\n') if screen_name in i and 'dontstarv' in i]
-            send_cmd(cmd_kill, inputs='\n'.join(pid_list))
+            # 有一点点注入风险 ';echo 123;
+            cmd_kill = \
+                ["bash", "-c", f"ps -ef | grep dontstarve | grep '{screen_name}' | awk '{{print $2}}' | xargs kill -9"]
+            send_cmd(cmd_kill, timeout=5)
         else:
             success.append(world_name)
             while world_name in fail:
                 fail.remove(world_name)
 
+    fail = list(set(fail))
     if success:
         info(f"已经关闭世界 {'、'.join(success)}")
     if fail:
-        warn(f"未能关闭世界 {'、'.join(list(set(fail)))}")
+        warn(f"未能关闭世界 {'、'.join(fail)}")
+    return success, fail
 
 
-def send_cmd(cmd, timeout=120, cwd=None, inputs=None):  # cmd: list or tuple, inputs: str, cwd: path, timeout: int
-    # print(now(), 'send', cmd)
-    stdin = PIPE if inputs else None
-    process = Popen(cmd, stdin=stdin, stdout=PIPE, stderr=PIPE, cwd=cwd, start_new_session=True,
-                    universal_newlines=True)
-    try:  # start_new_session 创建进程组包含打开的进程，用于超时后一并关闭。自带的kill有问题，比如kill后显示为僵尸进程，执行完毕才结束
+def send_cmd(cmd: iter, timeout: int = 120, cwd: str = None, inputs: str = None) -> tuple:  # tuple[str, str]
+    # 寻找 arg[0]，存在就 arg[0] "arg[1]" "arg[2]" "arg[3]"
+    sin = PIPE if inputs else None
+    # start_new_session 创建进程组包含打开的进程，用于超时后一并关闭。直接用kill有问题，子进程会变为僵尸进程，执行完毕才结束
+    process = Popen(cmd, stdin=sin, stdout=PIPE, stderr=PIPE, cwd=cwd, start_new_session=True, universal_newlines=True)
+    try:
         out, err = process.communicate(inputs, timeout=timeout)
     except TimeoutExpired:
         killpg(process.pid, SIGTERM)
@@ -1023,10 +1048,8 @@ def send_cmd(cmd, timeout=120, cwd=None, inputs=None):  # cmd: list or tuple, in
     return out, err
 
 
-def now(mode=(0.0 or 0 or '' or None)):  # 无参数返回当前格式化时间 int/float参数返回对应格式化时间 其它参数返回等长空格
-    if mode is None or isinstance(mode, (int, float)):
-        return strftime("%Y.%m.%d %H:%M:%S", localtime(mode))
-    return f"{'':19}"
+def now(mode: Union[int, float] = None) -> str:  # 无参数返回当前格式化时间 int/float参数返回对应格式化时间 其它参数返回等长空格
+    return strftime("%Y.%m.%d %H:%M:%S", localtime(mode))
 
 
 def show_version():
