@@ -181,14 +181,14 @@ def find_path() -> tuple:
     return path_steam_, path_steamcmd_, path_dst_, path_cluster_
 
 
-def active_time():
+def active_time() -> int:
     # 获取游戏目录下，所有玩家meta快照文件的最后修改时间。利用玩家快照文件进行判断，不受服务器重启影响。
     try:
         mtimes = []
         path_worlds = [pjoin(path_cluster, world) for world in world_list]
         for path_world in path_worlds:
             for rt, dirs, files in walk(str(path_world)):  # 不转str，就提示下面的'.meta'应为'bytes'，为什么
-                if len(basename(rt)) == 12:
+                if len(basename(rt)) == 12 and basename(rt).startswith('A7'):
                     for i in files:
                         if '.meta' in i:
                             mtimes.append(stat(pjoin(rt, i)).st_mtime)
@@ -198,9 +198,9 @@ def active_time():
         return 0
 
 
-def survival_days(world=None):
-    def meta_info(path_meta):
-        def table_dict(data_raw):  # 把meta文件的table转为dict
+def survival_days(world: str = None) -> Union[str, tuple]:
+    def meta_info(path_meta: str) -> dict:
+        def table_dict(data_raw: str) -> dict:  # 把meta文件的table转为dict
             data_raw = data_raw[data_raw.find('{'):data_raw.rfind('}') + 1]
             data_raw = data_raw.replace('=', ':').replace('["', '"').replace('"]', '"')
             data_raw = sub(r'(?P<item>[\w.]+)(?=\s*:)', r'"\g<item>"', data_raw)  # 键加 ""
@@ -213,7 +213,7 @@ def survival_days(world=None):
         with open(path_meta, 'r', encoding='utf-8') as f:
             data = f.read()
         meta_dict = table_dict(data)
-        day = meta_dict.get('clock', {}).get('cycles', -1) + 1  # 当前天数
+        day = meta_dict.get('clock', {}).get('cycles', -1) + 1  # 当前天数 （已过天数+1
         passed_season = meta_dict.get('seasons', {}).get('elapseddaysinseason', 0)  # 季节已过天数
         phase = meta_dict.get('clock', {}).get('phase', '')  # 当前阶段
         remaining_season = meta_dict.get('seasons', {}).get('remainingdaysinseason', 0)  # 季节剩余天数
@@ -234,7 +234,7 @@ def survival_days(world=None):
     day_info, newest_time, newest_path = {'day': 0, 'passed_time': '', 'season': ''}, 0, ''
     try:
         meta_files = []
-        for rt, dirs, files in walk(path_cluster):  # 检索存档内的快照文件，保存路径和修改时间
+        for rt, dirs, files in walk(path_cluster):  # 检索存档内的世界快照文件，保存路径和修改时间
             if len(basename(rt)) == 16 and rt.split(sep)[-4] in world:
                 for file_ in files:
                     if file_.endswith('.meta'):
@@ -674,9 +674,13 @@ def update_mod(tick=0, tick2=0, mode=0):
                 mod_version_remote, mod_version_remote_fail = getmodinfo(mod_list)
                 break
             except Exception as e:
-                if 'HTTP Error 503: Service Unavailable' in e.__str__():
-                    e = 'steam webapi 服务器繁忙'
-                exception(e)
+                if 'HTTP Error 5' in e.__str__():
+                    warn('steam webapi 服务器暂时不可用')
+                elif 'timed out' in e.__str__():
+                    warn('等待超时')
+                else:
+                    warn('未知错误')
+                    exception(e)
         else:
             error('从 webapi 获取 mod 信息失败')
             return
