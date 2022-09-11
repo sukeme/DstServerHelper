@@ -4,7 +4,7 @@
 #
 
 """
-version 22.09.11
+version 22.09.12
 在本文件所在路径下执行开启指令。括号内内容，不带括号( screen -dmS foralive python3 foralive.py )
 关闭指令( screen -X -S foralive quit )
 开启后查看同目录下 foralive.log 日志文件了解 是否开启成功 与 运行情况
@@ -98,7 +98,8 @@ console = logging.StreamHandler()
 console.setLevel(logging.INFO)
 console.setFormatter(fmt)
 file = logging.FileHandler(filename='./foralive.log', mode='a', encoding='utf-8')
-file.setLevel(logging.DEBUG)
+file.setLevel(logging.INFO)
+# file.setLevel(logging.DEBUG)
 file.setFormatter(fmt)
 
 log = logging.getLogger()
@@ -394,7 +395,7 @@ def update(tick=0, tick2=0):
                 err1, out1 = '执行 shell 命令超时', ''
             if 'Timed out waiting for AppInfo update.' in out1:
                 err1, out1 = '更新 appinfo 超时', ''
-            elif '(Service Unavailable)' in out1:
+            elif 'FAILED (Service Unavailable)' in out1:
                 err1, out1 = '服务器繁忙', ''
             elif 'FAILED (No Connection)' in out1:
                 err1, out1 = '多次尝试登录失败', ''
@@ -772,21 +773,22 @@ def update_mod(tick=0, tick2=0, mode=0):
                         mods_fail = {i: j for i, j in need_update.items() if i in update_fail}
                         name_success_str = '、'.join([mods_success.get(i, '') or i for i in mods_success])
                         name_fail_str = '、'.join([mods_fail.get(i, '') or i for i in mods_fail])
-                        name_success_str and info(f'世界 {world} 更新 mod {name_success_str} 成功')
-                        name_fail_str and warn(f'世界 {world} 更新 mod {name_fail_str} 失败')
+                        name_success_str and info(f'世界 {world} 更新 mod：{name_success_str} 成功')
+                        name_fail_str and warn(f'世界 {world} 更新 mod：{name_fail_str} 失败')
                         if mods_success:
                             updated_mods.update(mods_success)
                             updated_worlds[world] = data
                         break
                 else:
-                    warn(f'{world}更新mod失败{times}次')
+                    warn(f'{world} 更新mod失败 {times} 次')
                     if times > 5:
-                        warn(f'{world}更新mod失败')
-                        warn(f'out: {out}')
-                        warn(f'err: {err}')
+                        warn(f'{world} 更新mod失败')
+                        warn(f'out：{out}')
+                        warn(f'err：{err}')
                         break
         if not updated_mods:
             warn('更新 mod 失败')
+            return
         updated_mods_str = '、'.join([updated_mods.get(i, '') or i for i in updated_mods])
         info('mod 更新完成。开始重启服务器')
 
