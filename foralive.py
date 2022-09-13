@@ -4,7 +4,7 @@
 #
 
 """
-version 22.09.12
+version 22.09.13
 在本文件所在路径下执行开启指令。括号内内容，不带括号( screen -dmS foralive python3 foralive.py )
 关闭指令( screen -X -S foralive quit )
 开启后查看同目录下 foralive.log 日志文件了解 是否开启成功 与 运行情况
@@ -537,8 +537,6 @@ def write_mods_setup():
 
 
 def get_modlist(dont_check_lack=True):
-    path_ugc_clu = pjoin(path_dst, 'ugc_mods', basename(path_cluster))
-    path_mods = pjoin(path_dst, 'mods')
     mod_list, mod_lack_list, mod_single, mod_lack_single = [], [], {}, {}
     try:
         for world in world_list:  # 通过modoverrides.lua文件获取开启的modid
@@ -548,14 +546,15 @@ def get_modlist(dont_check_lack=True):
                     data = f.read()
                 data = sub(r'(?<=[^-])--\[\[[\S\s]*?]]', '', data)  # 删去多行注释
                 data = sub(r'--[\S\s]*?(?=\n)', '', data)  # 删去单行注释
-                # 复杂是因为一些mod会有依赖mod，这些mod要排除掉。这样应该可以保证准确率
+                # 复杂是因为一些mod配置中会有其它modid，这些mod要排除掉。这样应该可以保证准确率
                 mod_list_single = findall(r'(?<=\["workshop-)\d+(?="]\s*=\s*{)', data.replace('\'', '"'))
-                if mod_list_single:
-                    mod_list.extend(mod_list_single)
-                    mod_single[world] = list(set(mod_list_single))
+                mod_list.extend(mod_list_single)
+                mod_single[world] = list(set(mod_list_single))
         mod_list = list(set(mod_list))
 
         if dont_check_lack:
+            path_ugc_clu = pjoin(path_dst, 'ugc_mods', basename(path_cluster))
+            path_mods = pjoin(path_dst, 'mods')
             for world in world_list:  # 查找是否有mod尚未下载并提示。
                 path_ugc_world = pjoin(ugc_dir.get(world) or pjoin(path_ugc_clu, world), 'content', '322330')
                 mod_lack_single[world] = []
@@ -616,7 +615,7 @@ def update_mod(tick=0, tick2=0, mode=0):
             if state == 1:
                 mods_info_success[mod_id_] = {
                     'mod_name': result.get('title'),
-                    'updated_time': int(result.get('time_updated')),
+                    'updated_time': int(result.get('time_updated', 0)),
                 }
             else:
                 mods_info_fail.append(mod_id_)
@@ -628,26 +627,37 @@ def update_mod(tick=0, tick2=0, mode=0):
         在当前版本，服务器开启时会读取一次acf文件，之后调用steam更新的acf文件不会保存回去，可能是在内存中，关闭时再覆写 （仅更新mod模式应该还是原来的策略）
         就会导致 1 不能直接通过这个检测更新，2 运行期间开启额外进程更新mod后，额外进程修改的acf会被后关闭的主进程覆写，导致信息出问题
         避免第二个问题，1 更新完关闭后正常启动两次服务器，利用第一次调用steam，更新acf文件，2 更新完复制acf文件，关闭服务器后，覆写，3不使用acf"""
+        """检测文件的话，还有必要检测acf文件吗"""
         with open(path_acf_, 'r', encoding='utf-8') as f_:
             data_ = f_.read()
         data_local, data_remote = data_.split('WorkshopItemDetails')
         mod_version_touch = findall(r'"(\d+)"\n\t\t{[\d\D]+?"timetouched"\t\t"(\d+)"', data_remote)
         mod_version_touch = {i_[0]: int(i_[1]) for i_ in mod_version_touch}
         path_mods = pjoin(psplit(path_acf_)[0], 'content', '322330')
-        for mod_id_, mod_file_ms in mod_version_touch.items():
-            file_mtime = []
-            path_mod = pjoin(path_mods, mod_id_)
-            if not exists(path_mod):
+
+        mod_version_file = {}
+        for mod_id_ in listdir(path_mods):
+            if not isdir(mod_id_) or not mod_id_.isdecimal():
                 continue
-            for rt, dirs, files in walk(path_mod):
+            files_mtime = []
+            for rt, dirs, files in walk(pjoin(path_mods, mod_id_)):
                 for file_ in files:
-                    file_mtime.append(stat(pjoin(rt, file_)).st_mtime)
-            file_mtime.sort(reverse=True)
-            if file_mtime and file_mtime[0] > mod_file_ms:
-                mod_version_touch[mod_id_] = file_mtime[0]
+                    files_mtime.append(int(stat(pjoin(rt, file_)).st_mtime))
+            if files_mtime:
+                files_mtime.sort(reverse=True)
+                mod_version_file[mod_id_] = files_mtime[0]
+
+        mod_version = mod_version_touch.copy()
+        mod_version.update(mod_version_file)
+        for mod_id_, updated_time in mod_version_touch.items():
+            if mod_version_file.get(mod_id_, 0) > updated_time:
+                mod_version[mod_id_] = mod_version_file.get(mod_id_, 0)
+                continue
+            mod_version[mod_id_] = updated_time
+
         if return_local:
             ...
-        return mod_version_touch
+        return mod_version
 
         # 以下当前版本失效
         # update_code = search(r'(?<="NeedsUpdate"\t\t")\d+(?=")', data_).group(0)
@@ -667,7 +677,6 @@ def update_mod(tick=0, tick2=0, mode=0):
         #             need_update.append(i)
         # return need_update
 
-    dir_clu = basename(path_cluster)
     path_ugc_clu = pjoin(path_dst, 'ugc_mods', basename(path_cluster))
     text_normal = f'今日检测mod更新 {tick} 次，无可用更新'
     text_update = f'今日检测mod更新 {tick} 次，更新 {tick2} 次'
@@ -714,9 +723,12 @@ def update_mod(tick=0, tick2=0, mode=0):
         for world, world_mods in mod_single.items():
             need_update_dict[world] = {}
             world_mods_local = mods_version_local.get(world, {})
-            for mod_id, mod_info in mod_version_remote.items():
+            for mod_id in world_mods:
+                if mod_id not in mod_version_remote:  # 获取信息失败的 mod，不做处理
+                    continue
+                mod_info = mod_version_remote.get(mod_id)
                 mod_uptime = mod_info.get('updated_time')
-                if world_mods_local.get(mod_id, 0) < int(mod_uptime):
+                if world_mods_local.get(mod_id, 0) < mod_uptime:
                     need_update_dict[world][mod_id] = mod_info.get('mod_name')
 
         need_update_list = {mod_id: mod_name for world_mods in need_update_dict.values() for mod_id, mod_name in
@@ -724,7 +736,7 @@ def update_mod(tick=0, tick2=0, mode=0):
 
         if not need_update_list:
             if tick == 0:
-                info('没有mod需要更新')
+                info('没有 mod 需要更新')
             return
 
         need_update_name_str = '、'.join([need_update_list.get(i, '') or i for i in need_update_list])
@@ -738,7 +750,7 @@ def update_mod(tick=0, tick2=0, mode=0):
         for world in start_update:
             need_update = need_update_dict.get(world)
             path_acf = pjoin(ugc_dir.get(world) or pjoin(path_ugc_clu, world), 'appworkshop_322330.acf')
-            cmd = [f'./{dst_startup_name}', '-cluster', dir_clu, '-shard', world]
+            cmd = [f'./{dst_startup_name}', '-cluster', basename(path_cluster), '-shard', world]
             if ugc_dir.get(world):
                 cmd += ['-ugc_directory', ugc_dir.get(world)]
             cmd += ['-only_update_server_mods']
@@ -750,42 +762,52 @@ def update_mod(tick=0, tick2=0, mode=0):
                     update_fail = []
                     mods_local = parse_modacf(path_acf)
                     for mod_id in need_update:
-                        if int(mod_version_remote[mod_id].get('updated_time')) > mods_local.get(mod_id, 0):
+                        if mod_version_remote.get(mod_id).get('updated_time') > mods_local.get(mod_id, 0):
                             update_fail.append(mod_id)
 
                     with open(path_acf, 'r', encoding='utf-8') as f:
-                        data = f.read()
+                        data_raw = f.read()
 
                     if not update_fail:
                         updated_mods.update(need_update)
-                        updated_worlds[world] = data
+                        updated_worlds[world] = data_raw
                         break
 
-                    for modid in update_fail:  # 删去acf文件中更新失败的mod的信息，下次尝试更新时就会覆盖下载该mod
-                        data = sub(r'\n\t\t"{}"\n\t\t{{[\d\D]+?}}'.format(modid), '', data)
-                    with open(path_acf + 'tmp', 'w+', encoding='utf-8') as f:
-                        f.write(data)
-                    remove(path_acf)
-                    rename(path_acf + 'tmp', path_acf)
+                    if times <= 5:
+                        # 删去acf文件中更新失败的mod的信息，下次尝试更新时就会覆盖下载该mod。mod文件也一起删了
+                        data = data_raw
+                        for modid in update_fail:
+                            data = sub(rf'\n\t\t"{modid}"\n\t\t{{[\d\D]*?}}', '', data)
+                            if times <= 2:
+                                continue
+                            path_mod_ = pjoin(ugc_dir.get(world) or pjoin(path_ugc_clu, world), 'content', '322330', modid)
+                            if exists(path_mod_):
+                                rmtree(path_mod_)
 
-                    if times > 5:
-                        mods_success = {i: j for i, j in need_update.items() if i not in update_fail}
-                        mods_fail = {i: j for i, j in need_update.items() if i in update_fail}
-                        name_success_str = '、'.join([mods_success.get(i, '') or i for i in mods_success])
-                        name_fail_str = '、'.join([mods_fail.get(i, '') or i for i in mods_fail])
-                        name_success_str and info(f'世界 {world} 更新 mod：{name_success_str} 成功')
-                        name_fail_str and warn(f'世界 {world} 更新 mod：{name_fail_str} 失败')
-                        if mods_success:
-                            updated_mods.update(mods_success)
-                            updated_worlds[world] = data
-                        break
+                        with open(path_acf + 'tmp', 'w+', encoding='utf-8') as f:
+                            f.write(data)
+                        remove(path_acf)
+                        rename(path_acf + 'tmp', path_acf)
+                        continue
+
+                    mods_success = {i: j for i, j in need_update.items() if i not in update_fail}
+                    mods_fail = {i: j for i, j in need_update.items() if i in update_fail}
+                    name_success_str = '、'.join([mods_success.get(i, '') or i for i in mods_success])
+                    name_fail_str = '、'.join([mods_fail.get(i, '') or i for i in mods_fail])
+                    name_success_str and info(f'世界 {world} 更新 mod：{name_success_str} 成功')
+                    name_fail_str and warn(f'世界 {world} 更新 mod：{name_fail_str} 失败')
+                    if mods_success:
+                        updated_mods.update(mods_success)
+                        updated_worlds[world] = data_raw
+                    break
                 else:
-                    warn(f'{world} 更新mod失败 {times} 次')
-                    if times > 5:
-                        warn(f'{world} 更新mod失败')
-                        warn(f'out：{out}')
-                        warn(f'err：{err}')
-                        break
+                    if times <= 5:
+                        warn(f'{world} 更新 mod 失败 {times} 次')
+                        continue
+                    warn(f'{world} 多次更新 mod 失败，不再重试')
+                    warn(f'out：{out}')
+                    warn(f'err：{err}')
+                    break
         if not updated_mods:
             warn('更新 mod 失败')
             return
