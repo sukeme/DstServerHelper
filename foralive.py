@@ -4,7 +4,7 @@
 #
 
 """
-version 22.09.13
+version 22.09.14
 在本文件所在路径下执行开启指令。括号内内容，不带括号( screen -dmS foralive python3 foralive.py )
 关闭指令( screen -X -S foralive quit )
 开启后查看同目录下 foralive.log 日志文件了解 是否开启成功 与 运行情况
@@ -78,7 +78,7 @@ import logging.handlers
 from inspect import getsourcefile
 from json import loads
 from os import listdir, mkdir, remove, rename, sep, stat, walk, killpg
-from os.path import abspath, basename, dirname, exists, expanduser, isdir, join as pjoin, sep, split as psplit
+from os.path import abspath, basename, dirname, exists, expanduser, isdir, join as pjoin, sep
 from re import compile, findall, search, sub
 from shutil import copyfile, copytree, rmtree
 from signal import SIGTERM
@@ -567,7 +567,7 @@ def get_modlist(dont_check_lack=True):
                     mod_lack_single.get(world).append(mod_id)
             if mod_lack_list:
                 mod_lack_list = list(set(mod_lack_list))
-                warn(f"mod：{'、'.join(mod_lack_list)} 尚未下载，已作为待更新项加入更新列表")
+                warn(f"mod：{'、'.join(mod_lack_list)} 尚未下载，将作为待更新项加入更新列表")
 
         # 所有世界已启用的 mod 列表 | 各个世界与对应已启用的 mod 列表的字典 | 各个世界与对应已启用但未下载的 mod 列表的字典
         return mod_list, mod_single, mod_lack_single
@@ -577,6 +577,10 @@ def get_modlist(dont_check_lack=True):
 
 
 def update_mod(tick=0, tick2=0, mode=0):
+    path_ugc_clu = pjoin(path_dst, 'ugc_mods', basename(path_cluster))
+    text_normal = f'今日检测mod更新 {tick} 次，无可用更新'
+    text_update = f'今日检测mod更新 {tick} 次，更新 {tick2} 次'
+
     def getmodinfo(mod_ids):
         # https 偶尔会失败，http 失败几率比较低
         url_nonkey = 'http://api.steampowered.com/ISteamRemoteStorage/GetPublishedFileDetails/v1/'
@@ -622,30 +626,40 @@ def update_mod(tick=0, tick2=0, mode=0):
 
         return mods_info_success, mods_info_fail
 
-    def parse_modacf(path_acf_, return_local=True):
-        """通过游戏启动后定时调用steam更新的acf文件判断是否有mod更新
-        在当前版本，服务器开启时会读取一次acf文件，之后调用steam更新的acf文件不会保存回去，可能是在内存中，关闭时再覆写 （仅更新mod模式应该还是原来的策略）
+    def parse_modacf(world_: str, mod_list_: Union[iter]) -> dict:
+        """通过游戏启动后定时调用steam更新的acf文件判断是否有mod更新  acf文件不稳定，现版本靠不住了
+        在当前版本，服务器开启时会读取一次acf文件，之后调用steam更新的acf文件不会保存回去，可能是在内存中，关闭时再覆写 （仅更新mod模式应该还是原来的策略，但是确实还是会有问题）
         就会导致 1 不能直接通过这个检测更新，2 运行期间开启额外进程更新mod后，额外进程修改的acf会被后关闭的主进程覆写，导致信息出问题
         避免第二个问题，1 更新完关闭后正常启动两次服务器，利用第一次调用steam，更新acf文件，2 更新完复制acf文件，关闭服务器后，覆写，3不使用acf"""
-        """检测文件的话，还有必要检测acf文件吗"""
-        with open(path_acf_, 'r', encoding='utf-8') as f_:
-            data_ = f_.read()
-        data_local, data_remote = data_.split('WorkshopItemDetails')
-        mod_version_touch = findall(r'"(\d+)"\n\t\t{[\d\D]+?"timetouched"\t\t"(\d+)"', data_remote)
-        mod_version_touch = {i_[0]: int(i_[1]) for i_ in mod_version_touch}
-        path_mods = pjoin(psplit(path_acf_)[0], 'content', '322330')
+        """检测文件的话，还有必要检测acf文件吗  更新失败怎么判断，更新失败会回退还是更新一半"""
+        """下载mod时，steam会将未下载完的文件放在download文件夹中，待全部下载验证好之后，再移动过去。所以可以用modinfo文件来作为更新时间"""
 
+        path_ugc_world = ugc_dir.get(world_) or pjoin(path_ugc_clu, world_)
+        path_acf_ = pjoin(path_ugc_world, 'appworkshop_322330.acf')
+        mod_version_touch = {}
+        if exists(path_acf_):
+            with open(path_acf_, 'r', encoding='utf-8') as f_:
+                data_ = f_.read()
+            data_local, data_remote = data_.split('WorkshopItemDetails')
+            mod_version_touch = findall(r'"(\d+)"\n\t\t{[\d\D]+?"timetouched"\t\t"(\d+)"', data_remote)
+            mod_version_touch = {i_[0]: int(i_[1]) for i_ in mod_version_touch}
+        else:
+            warn(f'未找到世界{world_}的已下载mod信息')
+
+        path_mods = pjoin(path_ugc_world, 'content', '322330')
+        path_mods_v1 = pjoin(path_dst, 'mods')
         mod_version_file = {}
-        for mod_id_ in listdir(path_mods):
-            if not isdir(mod_id_) or not mod_id_.isdecimal():
+        for mod_id_ in mod_list_:  # 没有modinfo文件无法上传mod，但是极个别mod确实没有，甚至大小为0，但是也不太可能有人用
+            path_modinfo_v1 = pjoin(path_mods_v1, f'workshop-{mod_id_}', 'modinfo.lua')
+            path_modinfo_v2 = pjoin(path_mods, mod_id_, 'modinfo.lua')
+            if exists(path_modinfo_v2):  # v2mod，获取下载时间（更新时间
+                mod_version_file[mod_id_] = int(stat(path_modinfo_v2).st_mtime)
                 continue
-            files_mtime = []
-            for rt, dirs, files in walk(pjoin(path_mods, mod_id_)):
-                for file_ in files:
-                    files_mtime.append(int(stat(pjoin(rt, file_)).st_mtime))
-            if files_mtime:
-                files_mtime.sort(reverse=True)
-                mod_version_file[mod_id_] = files_mtime[0]
+            if exists(path_modinfo_v1):  # v1mod，不做处理 还是要处理，可能更新
+                mod_version_file[mod_id_] = int(stat(path_modinfo_v1).st_mtime)
+                continue
+            # 说明还没下载
+            mod_version_file[mod_id_] = 0
 
         mod_version = mod_version_touch.copy()
         mod_version.update(mod_version_file)
@@ -655,31 +669,8 @@ def update_mod(tick=0, tick2=0, mode=0):
                 continue
             mod_version[mod_id_] = updated_time
 
-        if return_local:
-            ...
         return mod_version
 
-        # 以下当前版本失效
-        # update_code = search(r'(?<="NeedsUpdate"\t\t")\d+(?=")', data_).group(0)
-        # if update_code == '0':  # 游戏启动时 steam 会检测已经安装的所有mod的版本，也包括现在没有启用的mod，这种就不用管，主函数会再判断
-        #     return []
-        # data_local, data_remote = data_.split('WorkshopItemDetails')
-        # mod_version_local = findall(r'"(\d+)"\n\t\t{[\d\D]+?"timeupdated"\t\t"(\d+)"', data_local)  # \d+分别是modid和对应时间
-        # mod_version_local = {i[0]: i[1] for i in mod_version_local}
-        # if return_local:
-        #     return mod_version_local
-        # mod_version_remote = findall(r'"(\d+)"\n\t\t{[\d\D]+?"timeupdated"\t\t"(\d+)"', data_remote)
-        # mod_version_remote = {i[0]: i[1] for i in mod_version_remote}
-        # need_update = []
-        # for i in mod_version_local:
-        #     if i in mod_version_remote:  # 两部分mod数量会不一致，虽然不清楚原因，也可能写的时候知道现在忘了。反正启用的mod肯定两个都有
-        #         if mod_version_local.get(i) != mod_version_remote.get(i):
-        #             need_update.append(i)
-        # return need_update
-
-    path_ugc_clu = pjoin(path_dst, 'ugc_mods', basename(path_cluster))
-    text_normal = f'今日检测mod更新 {tick} 次，无可用更新'
-    text_update = f'今日检测mod更新 {tick} 次，更新 {tick2} 次'
     try:
         if tick == 0:
             info('正在检测mod更新')
@@ -688,15 +679,6 @@ def update_mod(tick=0, tick2=0, mode=0):
             tick, tick2 = 1, 0
 
         mod_list, mod_single, mod_lack_single = get_modlist()  # 获取当前存档启用的 modid
-
-        mods_version_local = {}
-        for world in world_list:  # 通过 steam acf 文件获取已经下载的 modid 与更新时间
-            mods_version_local[world] = []
-            path_acf = pjoin(ugc_dir.get(world) or pjoin(path_ugc_clu, world), 'appworkshop_322330.acf')
-            if exists(path_acf):
-                mods_version_local[world] = parse_modacf(path_acf)
-            else:
-                warn(f'未找到 {world} 世界 mod 信息')
 
         for i in range(3):
             try:
@@ -722,7 +704,7 @@ def update_mod(tick=0, tick2=0, mode=0):
         # 逐个世界检查：各个 mod 最后更新时间 与 acf 文件记录的 mod 上次更新时间，获取各个世界需要更新的 modid 与 mod 名
         for world, world_mods in mod_single.items():
             need_update_dict[world] = {}
-            world_mods_local = mods_version_local.get(world, {})
+            world_mods_local = parse_modacf(world, world_mods)
             for mod_id in world_mods:
                 if mod_id not in mod_version_remote:  # 获取信息失败的 mod，不做处理
                     continue
@@ -760,7 +742,7 @@ def update_mod(tick=0, tick2=0, mode=0):
                 out, err, _ = send_cmd(cmd, cwd=path_dst_bin)
                 if ']: FinishDownloadingServerMods Complete!' in out:
                     update_fail = []
-                    mods_local = parse_modacf(path_acf)
+                    mods_local = parse_modacf(world, need_update)
                     for mod_id in need_update:
                         if mod_version_remote.get(mod_id).get('updated_time') > mods_local.get(mod_id, 0):
                             update_fail.append(mod_id)
@@ -774,7 +756,7 @@ def update_mod(tick=0, tick2=0, mode=0):
                         break
 
                     if times <= 5:
-                        # 删去acf文件中更新失败的mod的信息，下次尝试更新时就会覆盖下载该mod。mod文件也一起删了
+                        # 删去acf文件中更新失败的mod的信息，下次尝试更新时就会覆盖下载该mod。v1mod不会重新下载
                         data = data_raw
                         for modid in update_fail:
                             data = sub(rf'\n\t\t"{modid}"\n\t\t{{[\d\D]*?}}', '', data)
