@@ -1,4 +1,4 @@
-在线创建存档，欢迎测试: https://dst.suke.fun/。
+在线创建存档，欢迎测试: https://dst.suke.fun/
 
 为方便管理自己的饥荒联机版服务器，写了这个脚本。
 
@@ -19,7 +19,7 @@
     * 默认状态不能检测未公开 mod，需要填写 [Steam apikey](https://steamcommunity.com/dev/apikey) 以通过更高权限的 api 检测。
 6. 游戏崩溃自启
     * 默认 2 分钟。
-7.网络错误重启
+7. 网络错误重启
     * 默认 10 分钟
 8. 多层世界支持
 
