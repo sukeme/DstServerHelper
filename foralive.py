@@ -4,7 +4,7 @@
 #
 
 """
-version 22.09.14
+version 22.10.5
 在本文件所在路径下执行开启指令。括号内内容，不带括号( screen -dmS foralive python3 foralive.py )
 关闭指令( screen -X -S foralive quit )
 开启后查看同目录下 foralive.log 日志文件了解 是否开启成功 与 运行情况
@@ -843,6 +843,7 @@ def auto_restart(mode):
     parrent_right2 = compile(rb'\n\[\d\d:\d\d:\d\d]: Shutting down')
     parrent_wrong_crash = compile(rb'\nLUA ERROR stack traceback')
     parrent_wrong_curl = compile(rb'\n\[\d\d:\d\d:\d\d]: CURL ERROR:')
+    parrent_wrong_curl2 = compile(rb'\n\[\d\d:\d\d:\d\d]: Failed to send server listings')
     parrent_update_mod = compile(rb'\n\[\d\d:\d\d:\d\d]: FinishDownloadingServerMods Complete!')
     log_name = 'server_log.txt'
     t = max({'curl_error': interval_curl_rs, 'crash': interval_crash_rs}.get(mode), 30)
@@ -868,7 +869,7 @@ def auto_restart(mode):
                     if stat(path_log).st_size > 8196:  # 对纯净来说一百多行，可能有点严格，对一些奇怪mod来说，可能只有几十行，可能太过宽松
                         f.seek(-8196, 2)
                     data = f.read()
-                if len(parrent_wrong_curl.findall(data)) > 3:
+                if len(parrent_wrong_curl.findall(data)) > 3 or len(parrent_wrong_curl2.findall(data)) > 3:
                     world_curl_error.append(world)
 
             elif mode == 'crash':
