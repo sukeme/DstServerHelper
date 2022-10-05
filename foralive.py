@@ -689,8 +689,8 @@ def update_mod(tick=0, tick2=0, mode=0):
                     warn('Steam WebAPI 服务器暂时不可用')
                 elif'HTTP Error 4' in e.__str__():
                     warn(e.__str__())
-                # elif 'timed out' in e.__str__() or 'HTTP Error 408: Request Time-out' in e.__str__():
-                #     warn('等待超时')
+                elif 'timed out' in e.__str__():
+                    warn('等待超时')
                 else:
                     warn('未知错误')
                     exception(e)
