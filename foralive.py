@@ -4,7 +4,7 @@
 #
 
 """
-version 22.10.5
+version 22.10.26
 在本文件所在路径下执行开启指令。括号内内容，不带括号( screen -dmS foralive python3 foralive.py )
 关闭指令( screen -X -S foralive quit )
 开启后查看同目录下 foralive.log 日志文件了解 是否开启成功 与 运行情况
@@ -690,7 +690,9 @@ def update_mod(tick=0, tick2=0, mode=0):
                 elif'HTTP Error 4' in e.__str__():
                     warn(e.__str__())
                 elif 'timed out' in e.__str__():
-                    warn('等待超时')
+                    warn(e.__str__())
+                elif 'Permission denied' in e.__str__():
+                    warn(e.__str__())
                 else:
                     warn('未知错误')
                     exception(e)
