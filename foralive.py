@@ -33,7 +33,7 @@ open_update               = 1    # 检测游戏更新  数字为 0 代表关闭�
 open_chatlog              = 1    # 备份聊天记录  数字为 0 代表关闭，为 1 代表开启
 open_update_mod           = 1    # 检测模组更新  数字为 0 代表关闭，为 1 代表开启
 open_crash_restart        = 1    # 游戏崩溃自启  数字为 0 代表关闭，为 1 代表开启
-open_curl_restart         = 1    # 网络错误重启  数字为 0 代表关闭，为 1 代表开启
+open_curl_restart         = 1    # 网络错误重连  数字为 0 代表关闭，为 1 代表开启
 
 # -必填区-必填区-必填区-必填区-必填区-必填区-必填区-必填区-必填区-必填区-必填区-必填区-必填区-必填区-必填区-
 # 各个世界的文件夹名与其对应的screen名，第一个为主世界。此项必须确保无误
@@ -871,6 +871,7 @@ def auto_restart(mode):
                     if stat(path_log).st_size > 8196:  # 对纯净来说一百多行，可能有点严格，对一些奇怪mod来说，可能只有几十行，可能太过宽松
                         f.seek(-8196, 2)
                     data = f.read()
+                data = data.split(b']: RemoteCommandInput: "TheNet:StopBroadcastingServer()"')[-1]
                 if len(parrent_wrong_curl.findall(data)) > 3 or len(parrent_wrong_curl2.findall(data)) > 3:
                     world_curl_error.append(world)
 
@@ -941,10 +942,13 @@ def auto_restart(mode):
 
         if mode == 'curl_error':
             if world_curl_error:
-                info(f'世界：{"、".join(world_curl_error)} 与 klei 服务器连接失败，尝试重启')
-                send_messages('curl_error')  # 发送公告提示重启
-                stop_world(world_curl_error)
-                start_world(world_curl_error)
+                info(f'世界：{"、".join(world_curl_error)} 与 klei 服务器连接失败，尝试发送命令重连')
+                cmd_message = ['screen', '-S', screen_name_master, '-X', 'stuff', 'TheNet:StopBroadcastingServer()\n']
+                send_cmd(cmd_message, timeout=5)
+                # info(f'世界：{"、".join(world_curl_error)} 与 klei 服务器连接失败，尝试重启')
+                # send_messages('curl_error')  # 发送公告提示重启
+                # stop_world(world_curl_error)
+                # start_world(world_curl_error)
     except Exception as e:
         exception(e)
     finally:

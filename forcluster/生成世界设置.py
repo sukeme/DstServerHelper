@@ -62,7 +62,7 @@ start = time.time()
 path_base = r"C:\Program Files (x86)\Steam\steamapps\common\Don't Starve Together\data"
 path_script = pjoin(path_base, r'databundles\scripts')
 po_chs = r'languages/chinese_s.po'
-lua_customize = r'map/customize'  # 务必用正斜杠避免问题。lua 内部 require 会用正斜杠，两个不一样的话操作对应模块时会有坑
+lua_customize = r'map_/customize'  # 务必用正斜杠避免问题。lua 内部 require 会用正斜杠，两个不一样的话操作对应模块时会有坑
 
 
 def table_dict(lua_table):
@@ -170,7 +170,7 @@ def parse_cus(path, lua_cus, po):
         options[lang] = {'setting': {i: table_dict(lua.globals()[i]) for i in options_list if i in lua.globals()},
                          'translate': tran}
         for package in list(lua.globals().package.loaded):  # 清除加载的 customize 模块，避免下次 require 时不加载
-            if 'map/' in package:
+            if 'map_/' in package:
                 lua.execute(f'package.loaded["{package}"]=nil')  # table.remove 不能用，显示 package.loaded 长度为0
     os.chdir(cwd_now)
     miscs = {i: table_dict(lua.globals()[i]) for i in misc_list if i in lua.globals()}
