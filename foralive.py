@@ -4,7 +4,7 @@
 #
 
 """
-version 22.10.26
+version 22.12.03
 在本文件所在路径下执行开启指令。括号内内容，不带括号( screen -dmS foralive python3 foralive.py )
 关闭指令( screen -X -S foralive quit )
 开启后查看同目录下 foralive.log 日志文件了解 是否开启成功 与 运行情况
@@ -52,7 +52,7 @@ day_to_endless            = 40   # 转为无尽的天数，到达该天数5s后�
 dst_bin                   = 64   # 启动游戏使用的饥荒服务器版本，32 代表 32 位服务器，64 代表 64 位服务器
 interval_backup_chat      = 2    # 备份聊天记录的间隔时间（单位/分钟）
 interval_crash_rs         = 2    # 检测游戏是否崩溃的间隔时间（单位/分钟）
-interval_curl_rs          = 5   # 检测连接 klie 服务器是否失败的间隔时间（单位/分钟）
+interval_curl_rs          = 5    # 检测连接 klie 服务器是否失败的间隔时间（单位/分钟）
 interval_warn             = 2    # 重启服务器前发送公告的预警时间（单位/分钟）
 interval_update           = 15   # 检测游戏更新的间隔时间（单位/分钟）
 interval_update_mod       = 15   # 检测 mod 更新的间隔时间（单位/分钟）
@@ -253,8 +253,76 @@ def survival_days(world: str = None) -> Union[str, tuple]:
         return (*day_info.values(), newest_time) if mode else newest_path
 
 
+def modify_override(target_item__: str = None, **target_dict):
+    """
+
+    :param target_item__: 要获取当前值的的键
+    :param target_dict: 要批量处理的键值对
+    :return: 文件不存在时，返回 1
+             要获取且当前值存在时，返回当前值
+             否则返回 None
+    """
+    def get_master_override_path():
+        path_clu_master = pjoin(path_cluster, master_name)
+        paths_override = [pjoin(path_clu_master, i) for i in ('worldgenoverride.lua', 'leveldataoverride.lua')]
+        paths_override_exists = [i for i in paths_override if exists(i)]
+        if not paths_override_exists:
+            warn('未找到世界配置文件')
+            return 1
+        return paths_override_exists[0]
+
+    if target_item__ is None and not target_dict:
+        return
+
+    path_override = get_master_override_path()
+    with open(path_override, 'r', encoding='utf-8') as f:
+        override_text = f.read()
+
+    # 返回匹配值
+    if target_item__:
+        pattern = rf"""(?P<pre>(?:\[['"])?{target_item__}(?:['"]])?\s*=\s*['"])(?P<target>\w*?)(?P<suf>['"])"""
+        result = search(pattern, override_text)
+        if result:
+            return result.groupdict().get('target', None)
+        return None
+
+    # 修改为目标值
+    for ti, tv in target_dict.items():
+        pattern = rf"""(?P<pre>(?:\[['"])?{ti}(?:['"]])?\s*=\s*['"])(?P<target>\w*?)(?P<suf>['"])"""
+        if search(pattern, override_text):
+            override_text = sub(pattern, rf'\g<pre>{tv}\g<suf>', override_text)
+            continue
+        pattern = r"""(?P<pre>\s(\[['"])?overrides(['"]])?\s*=\s*{)"""
+        override_text = sub(pattern, rf'\g<pre>\n\t\t{ti} = "{tv}",', override_text)
+
+    with open(f'{path_override}.temp', 'w', encoding='utf-8') as f:
+        f.write(override_text)
+    remove(path_override)
+    rename(f'{path_override}.temp', path_override)
+
+
+def change_override(target_mode: str):
+    mode_dict = {
+        'endless': {
+            'resettime': 'none',
+            'portalresurection': 'always',
+            'ghostsanitydrain': 'none',
+            'basicresource_regrowth': 'always',
+        },
+        'survival': {
+            'resettime': 'default',
+            'portalresurection': 'none',
+            'ghostsanitydrain': 'always',
+            'basicresource_regrowth': 'none',
+        },
+    }
+    if target_mode not in mode_dict:
+        warn('没有匹配的模式')
+        return
+    modify_override(**mode_dict[target_mode])
+
+
 def reset():
-    path_clu_ini = pjoin(path_cluster, 'cluster.ini')
     reset_time = max(time_to_reset * 60 * 60, 30 * 60)
     t = 3600
     try:
@@ -271,13 +339,8 @@ def reset():
             info('不需要重置')
             t = reset_time - (time() - act_time)
             return
-        # 修改设置，改为生存模式
-        with open(path_clu_ini, 'r', encoding='utf-8') as f, open(path_clu_ini + '.temp', 'w+', encoding='utf-8') as f2:
-            newdata = sub(r'(\n\s*game_mode\s*=\s*)[\d\D]+?(\n)', r'\g<1>survival\g<2>', f.read())
-            f2.write(newdata)
-        remove(path_clu_ini)
-        rename(path_clu_ini + '.temp', path_clu_ini)
 
+        # 修改设置，改为生存模式
         info('开始重置世界')
         running_list = [i[0] for i in zip(world_list, running(world_list)) if i[1]]  # 记录正在运行的世界，最后开启
         for world_name in running_list:  # 删除所有快照文件
@@ -285,6 +348,9 @@ def reset():
             if exists(path_save):
                 rmtree(path_save)
         stop_world(running_list)
+        
+        change_override('survival')
+
         start_world(running_list)
 
         t = reset_time
@@ -297,7 +363,6 @@ def reset():
 
 
 def endless(times=0, text=''):
-    path_clu_ini = pjoin(path_cluster, 'cluster.ini')
     day_to_change_real = max(day_to_endless - 1, 1)  # n天早上转，只等待n-1天
     reset_time = max(time_to_reset * 60 * 60, 30 * 60)
     change_time = day_to_change_real * 8 * 60
@@ -317,9 +382,10 @@ def endless(times=0, text=''):
             t = change_time
             return
 
-        with open(path_clu_ini, 'r', encoding='utf-8') as f:
-            data = f.read()
-        if search(r'(\n\s*game_mode\s*=\s*)endless', data):
+        resettime = modify_override('resettime')
+        if resettime == 1:
+            return
+        if resettime == 'none':
             info(f'已经是无尽 天数：{day} 季节：{season}')
             t = change_time + reset_time - (time() - act_time)  # 已经是无尽，下次检测时间就是预计重置时间延后change_time
             return
@@ -342,16 +408,13 @@ def endless(times=0, text=''):
 
         times = 0
         # 修改设置，改为无尽模式
-        with open(path_clu_ini, 'r', encoding='utf-8') as f, open(path_clu_ini + '.temp', 'w+', encoding='utf-8') as f2:
-            newdata = sub(r'(\n\s*game_mode\s*=\s*)[\d\D]+?(\n)', r'\g<1>endless\g<2>', f.read())
-            f2.write(newdata)
-        remove(path_clu_ini)
-        rename(path_clu_ini + '.temp', path_clu_ini)
-
         info('即将重启为无尽模式')
         send_messages('endless')  # 发送公告提示重启
         running_list = [i[0] for i in zip(world_list, running(world_list)) if i[1]]  # 记录正在运行的世界，最后开启
         stop_world(running_list)
+
+        change_override('endless')
+
         start_world(running_list)
         info('已更改为无尽模式')
         t = change_time + reset_time - (time() - active_time())  # 已经是无尽，下次检测时间就是预计重置时间延后change_time
