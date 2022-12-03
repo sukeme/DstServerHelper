@@ -942,6 +942,9 @@ def auto_restart(mode):
 
         if mode == 'curl_error':
             if world_curl_error:
+                if screen_name_master not in world_curl_error:
+                    # TODO 不是主世界发送这个命令好像没用，应该怎么处理
+                    pass
                 info(f'世界：{"、".join(world_curl_error)} 与 klei 服务器连接失败，尝试发送命令重连')
                 cmd_message = ['screen', '-S', screen_name_master, '-X', 'stuff', 'TheNet:StopBroadcastingServer()\n']
                 send_cmd(cmd_message, timeout=5)
