@@ -1,4 +1,4 @@
-在线创建存档，欢迎测试: https://dst.suke.fun/
+在线创建存档，欢迎测试: https://dst.suke.asia/
 
 为方便管理自己的饥荒联机版服务器，写了这个脚本。
 
@@ -94,4 +94,4 @@ screen -X -S foralive quit
 
 ### 完成
 
-功能部分基本写好了，欢迎测试。 地址：https://dst.suke.fun/
+功能部分基本写好了，欢迎测试。 地址：https://dst.suke.asia/
