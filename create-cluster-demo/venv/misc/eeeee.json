@@ -1,0 +1,83 @@
+[
+  {
+    "location": "forest",
+    "random_set_pieces": [
+      "Sculptures_2",
+      "Sculptures_3",
+      "Sculptures_4",
+      "Sculptures_5",
+      "Chessy_1",
+      "Chessy_2",
+      "Chessy_3",
+      "Chessy_4",
+      "Chessy_5",
+      "Chessy_6",
+      "Maxwell1",
+      "Maxwell2",
+      "Maxwell3",
+      "Maxwell4",
+      "Maxwell6",
+      "Maxwell7",
+      "Warzone_1",
+      "Warzone_2",
+      "Warzone_3"
+    ],
+    "desc": "标准《饥荒》体验。",
+    "min_playlist_position": 0,
+    "hideminimap": false,
+    "required_prefabs": [
+      "multiplayer_portal"
+    ],
+    "max_playlist_position": 999,
+    "version": 4,
+    "settings_name": "标准森林",
+    "id": "SURVIVAL_TOGETHER",
+    "worldgen_name": "标准森林",
+    "worldgen_desc": "标准《饥荒》体验。",
+    "override_level_string": false,
+    "settings_desc": "标准《饥荒》体验。",
+    "substitutes": [],
+    "settings_id": "SURVIVAL_TOGETHER",
+    "worldgen_id": "SURVIVAL_TOGETHER",
+    "required_setpieces": [
+      "Sculptures_1",
+      "Maxwell5"
+    ],
+    "overrides": {
+      "ocean_waterplant": "ocean_default",
+      "ocean_seastack": "ocean_default"
+    },
+    "numrandom_set_pieces": 4,
+    "name": "标准森林"
+  },
+  {
+    "location": "cave",
+    "background_node_range": [
+      0,
+      1
+    ],
+    "min_playlist_position": 0,
+    "hideminimap": false,
+    "required_prefabs": [
+      "multiplayer_portal"
+    ],
+    "max_playlist_position": 999,
+    "version": 4,
+    "settings_name": "洞穴",
+    "id": "DST_CAVE",
+    "worldgen_name": "洞穴",
+    "worldgen_desc": "探查洞穴…… 一起！",
+    "override_level_string": false,
+    "settings_desc": "探查洞穴…… 一起！",
+    "substitutes": [],
+    "settings_id": "DST_CAVE",
+    "worldgen_id": "DST_CAVE",
+    "overrides": {
+      "start_location": "caves",
+      "task_set": "cave_default"
+    },
+    "numrandom_set_pieces": 0,
+    "desc": "探查洞穴…… 一起！",
+    "name": "洞穴"
+  }
+]

@@ -1,0 +1,11 @@
+[client]
+database=dst
+
+[connector_python]
+host=localhost
+port=33306
+user=dst
+passwd=Tem5Gk77RfzF2A6n
+db=dst
+charset=utf8mb4
+

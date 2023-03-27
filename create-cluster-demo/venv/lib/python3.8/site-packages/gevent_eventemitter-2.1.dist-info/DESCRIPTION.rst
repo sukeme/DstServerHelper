@@ -1,0 +1,105 @@
+EventEmitter with gevent
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+|pypi| |coverage| |master_build|
+
+This module implements EventEmitter with gevent.
+
+Installation
+============
+
+To install the latest release from ``pypi``::
+
+    pip install gevent-eventemitter
+
+Usage
+=====
+
+``EventEmitter`` can be used as mixin, or on it's own. Here is an example as mixin:
+
+.. code:: python
+
+    from eventemitter import EventEmitter
+
+    class MyClass(EventEmitter):
+        pass
+
+    instance = MyClass()
+
+
+Registering a callback
+
+.. code:: python
+
+    def do_stuff():
+        print "Hello world!"
+
+    instance.on('my event', do_stuff)
+
+    instance.emit('my event')
+
+Or as decorator
+
+.. code:: python
+
+    @instance.on('my event')
+    def do_stuff():
+        print "Hello world!"
+
+With ``once`` the callback will be called, you guessed it, only once.
+
+.. code:: python
+
+    @instance.once('my event')
+    def do_stuff(var):
+        print "Hello %s!" % var
+
+    instance.emit('my event', 'Earth')  # arguments can be passed along events
+    instance.emit('my event')  # do_stuff won't be called
+
+It's possible to block wait for an event.
+ If there are event arguments they will be returned as a ``tuple``
+
+.. code:: python
+
+    my_args = instance.wait_event('my event')
+    my_args = instance.wait_event('my event', timeout=5)  # wait at most 5seconds
+
+On timeout ``wait_event`` will return ``None``, or raise ``gevent.Timeout`` if ``raises=True``
+
+.. code:: python
+
+    my_args = instance.wait_event('my event', timeout=5)
+    if my_args is None:
+        print "Timeout!"
+
+    try:
+        my_args = instance.wait_event('my event', timeout=5, raises=True)
+    except gevent.Timeout:
+        print "Timeout!"
+
+To remove a callback, or all callbacks.
+
+.. code:: python
+
+    instance.remove_listener('my event', do_stuff)
+    instance.remove_all_listeners()                 # absolutely all listeners
+    instance.remove_all_listeners('my event')       # all listners for the event
+
+Listening for ``None`` event will result in catching all events.
+
+
+.. |pypi| image:: https://img.shields.io/pypi/v/gevent-eventemitter.svg?style=flat&label=latest%20version
+    :target: https://pypi.python.org/pypi/gevent-eventemitter
+    :alt: Latest version released on PyPi
+
+.. |coverage| image:: https://img.shields.io/coveralls/rossengeorgiev/gevent-eventemitter/master.svg?style=flat
+    :target: https://coveralls.io/r/rossengeorgiev/gevent-eventemitter?branch=master
+    :alt: Test coverage
+
+.. |master_build| image:: https://img.shields.io/travis/rossengeorgiev/gevent-eventemitter/master.svg?style=flat&label=master%20build
+    :target: http://travis-ci.org/rossengeorgiev/gevent-eventemitter
+    :alt: Build status of master branch
+
+
+
