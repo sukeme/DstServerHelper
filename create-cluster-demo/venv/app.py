@@ -3,7 +3,8 @@
 from _log import app_log
 from flask import Flask, request, make_response
 import tools
-from steamapi import searchmod, Dst
+from steamapi import searchmod
+# from steamapi import Dst
 from hashlib import md5
 import json
 from time import sleep, time
@@ -11,7 +12,7 @@ from threading import Timer
 from gc import collect
 
 # 实例化一下，启动检查 dst 版本进程
-dst = Dst()
+# dst = Dst()
 
 app = Flask(__name__)
 
