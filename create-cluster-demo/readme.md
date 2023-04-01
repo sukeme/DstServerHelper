@@ -1,5 +1,6 @@
 # 此版本仅是 demo，存在很多问题
 尚有很多不足，不建议尝试。如果想运行，需要做一些准备工作
+[点此查看](https://github.com/sukeme/DstServerHelper/issues/4#issuecomment-1492797064)由[IcyFeather233](https://github.com/IcyFeather233)整理的更加详细的创建流程
 ## 安装 nginx
 添加 dst.html（前端网页）的路由规则
 
